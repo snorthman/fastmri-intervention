@@ -1,11 +1,9 @@
 import os, json, shutil
 from pathlib import Path
+
+import click, picai_prep
 from p_tqdm import p_uimap
-
-import click
 from box import Box
-
-import picai_prep
 
 
 def generate_dcm2mha_json(input: Path, output: Path) -> Path:
@@ -38,18 +36,13 @@ def _walk_archive(input: Path) -> set:
     return archive
 
 
-def dcm2mha(archive: Path, output: Path, json: Path = None):
-    if not json:
-        json = generate_dcm2mha_json(archive, output)
+def dcm2mha(dcm_dir: Path, mha_dir: Path, json: Path = None):
+    if not json or not json.exists():
+        json = generate_dcm2mha_json(dcm_dir, mha_dir)
 
-    mha = output / 'dcm2mha'
-    if os.path.exists(mha):
-        shutil.rmtree(mha)
-    os.mkdir(mha)
-
-    archive = picai_prep.Dicom2MHAConverter(
-        input_path=archive.as_posix(),
-        output_path=mha.as_posix(),
+    converter = picai_prep.Dicom2MHAConverter(
+        input_path=dcm_dir.as_posix(),
+        output_path=mha_dir.as_posix(),
         settings_path=json.as_posix(),
     )
-    archive.convert()
+    converter.convert()

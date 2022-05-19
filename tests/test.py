@@ -1,20 +1,13 @@
-import pytest
 from pathlib import Path
 
-import fastmri_intervention.convert_data
+from my.workflow import workflow
 
 
-@pytest.mark.order(0)
-def test_prepare_data():
-    input = Path('//umcsanfsclp01.umcn.nl/radng_diag_prostate/archives/Prostate-mpMRI-ScientificArchive/RUMC/10007')
+def test_workflow():
+    input = Path('//umcsanfsclp01.umcn.nl/radng_diag_prostate/archives/Prostate-mpMRI-ScientificArchive/RUMC')
     output = Path('tests/output')
-    j = Path('tests/output/dcm2mha_settings.json')
+    j = output / 'dcm2mha_settings.json'
 
-    if not j.exists():
-        fastmri_intervention.convert_data.generate_dcm2mha_json(input, output)
+    output.mkdir(exist_ok=True)
 
-    fastmri_intervention.convert_data.dcm2mha(input, output, j if j.exists() else None)
-
-@pytest.mark.order(1)
-def test_upload_data():
-    pass
+    workflow(dcm2mha_json=j, archive_dir=input, output_dir=output)

@@ -1,4 +1,4 @@
-import os, shutil, argparse, threading
+import os, threading
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -9,18 +9,9 @@ from shapely.geometry import Polygon, Point, LineString, MultiPoint
 from quaternion import from_vector_part, rotate_vectors
 from tqdm import tqdm
 
-output_dir = 'output'
-
 # in mm
 diameter_base = 12
 diameter_needle = 6
-
-context = threading.local()
-
-
-def initializer_worker():
-    # ifr, ifw = context.sitk
-    context.sitk = (sitk.ImageFileReader(), sitk.ImageFileWriter())
 
 
 @dataclass
@@ -86,7 +77,7 @@ class Boundary:
         return self._XY.contains(xy) and self._YZ.contains(yz)
 
 
-def _get_answers(api: str, slug: str, mha_dir: Path) -> List[Answer]:
+def _get_answers(mha_dir: Path, slug: str, api: str) -> List[Answer]:
     mha = dict()
     for root, dirs, files in os.walk(mha_dir):
         for file in files:
@@ -133,7 +124,7 @@ def _get_answers(api: str, slug: str, mha_dir: Path) -> List[Answer]:
 
 
         if not (question := raw_questions.get(ra['question'])):
-            print(f'unknown question: {ra["question"]}')
+            click.echo(f'unknown question: {ra["question"]}')
             continue
         question = question['question_text']
         if question == 'No needle':
@@ -148,92 +139,73 @@ def _get_answers(api: str, slug: str, mha_dir: Path) -> List[Answer]:
     return [a for a in answers.values()]
 
 
-def _write_annotation(answer: Answer) -> bool:
-    if not answer.is_valid():
-        return False
+def write_annotations(mha_dir: Path, annotation_dir: Path, slug: str, api: str):
+    context = threading.local()
 
-    ifr.SetFileName(str(answer.mha.absolute()))
-    ifr.ReadImageInformation()
-    mha: sitk.Image = ifr.Execute()
+    def initializer_worker():
+        context.ifr = sitk.ImageFileReader()
 
-    (sz := list(mha.GetSize())).reverse()
-    annotation = sitk.GetImageFromArray(np.zeros(sz))
-    annotation.SetDirection(mha.GetDirection())
-    annotation.SetOrigin(mha.GetOrigin())
-    annotation.SetSpacing(mha.GetSpacing())
-    [annotation.SetMetaData(k, mha.GetMetaData(k)) for k in mha.GetMetaDataKeys()]
+    def _write_annotation(answer: Answer) -> bool:
+        if not answer.is_valid():
+            return False
 
-    base, needle, tip = (p.as_ndarray() for p in [answer.base, answer.needle, answer.tip])
+        context.ifr.SetFileName(str(answer.mha.absolute()))
+        context.ifr.ReadImageInformation()
+        mha: sitk.Image = context.ifr.Execute()
 
-    boundary_base_needle = Boundary(base, needle, 1, thickness=diameter_base)
-    boundary_needle_tip = Boundary(needle, tip, 2, thickness=diameter_needle)
+        (sz := list(mha.GetSize())).reverse()
+        annotation = sitk.GetImageFromArray(np.zeros(sz))
+        annotation.SetDirection(mha.GetDirection())
+        annotation.SetOrigin(mha.GetOrigin())
+        annotation.SetSpacing(mha.GetSpacing())
+        [annotation.SetMetaData(k, mha.GetMetaData(k)) for k in mha.GetMetaDataKeys()]
 
-    for boundary in [boundary_base_needle, boundary_needle_tip]:
-        trail = [start := mha.TransformPhysicalPointToIndex(boundary.center)]
-        explored = {start}
+        base, needle, tip = (p.as_ndarray() for p in [answer.base, answer.needle, answer.tip])
 
-        while len(trail) > 0:
-            X, Y, Z = trail.pop()
-            try:
-                annotation.SetPixel(X, Y, Z, boundary.label)
-            except Exception:
-                pass
+        boundary_base_needle = Boundary(base, needle, 1, thickness=diameter_base)
+        boundary_needle_tip = Boundary(needle, tip, 2, thickness=diameter_needle)
 
-            group = []
-            for x in [X - 1, X + 1]:
-                group.append((x, Y, Z))
-            for y in [Y - 1, Y + 1]:
-                group.append((X, y, Z))
-            for z in [Z - 1, Z + 1]:
-                group.append((X, Y, z))
-            group = [g for g in group if g not in explored]
+        for boundary in [boundary_base_needle, boundary_needle_tip]:
+            trail = [start := mha.TransformPhysicalPointToIndex(boundary.center)]
+            explored = {start}
 
-            trail += [g for g in group
-                      if boundary.contains(np.array(mha.TransformIndexToPhysicalPoint(g)))]
-            explored = explored.union(group)
+            while len(trail) > 0:
+                X, Y, Z = trail.pop()
+                try:
+                    annotation.SetPixel(X, Y, Z, boundary.label)
+                except Exception:
+                    pass
 
-    sitk.WriteImage(annotation, fileName=str(output_dir / answer.mha.with_suffix('.nii.gz').name), useCompression=True)
-    return True
+                group = []
+                for x in [X - 1, X + 1]:
+                    group.append((x, Y, Z))
+                for y in [Y - 1, Y + 1]:
+                    group.append((X, y, Z))
+                for z in [Z - 1, Z + 1]:
+                    group.append((X, Y, z))
+                group = [g for g in group if g not in explored]
 
+                trail += [g for g in group
+                          if boundary.contains(np.array(mha.TransformIndexToPhysicalPoint(g)))]
+                explored = explored.union(group)
 
-# parser = argparse.ArgumentParser()
-# parser.add_argument('--api', type=str, required=True)
-# parser.add_argument('--slug', type=str, required=True, default='needle-segmentation-for-interventional-radiology')
-# parser.add_argument('--mha', type=str, required=True)
-# parser.add_argument('--output', type=str, default=output_dir)
+        sitk.WriteImage(annotation, fileName=str(annotation_dir / answer.mha.with_suffix('.nii.gz').name), useCompression=True)
+        return True
 
-# mha = downloaded mha files, output = fully annotated mha files
-# try to way to mock all these actions with 1 mha start to finish for easier testing
-def write_annotations()
+    click.echo(f'\ncreating annotations in\n\t{annotation_dir}\nusing\n\t{mha_dir}')
 
+    answers = _get_answers(api, slug, mha_dir)
 
-if __name__ == '__main__':
-    args = parser.parse_args()
-    output_dir = Path(args.output).absolute()
-    if os.path.exists(output_dir):
-        if not os.path.isdir(output_dir):
-            raise NotADirectoryError()
-        if list(os.scandir(output_dir)):
-            if not click.confirm(f'{output_dir} has files that will be deleted. Proceed?'):
-                raise InterruptedError()
-        shutil.rmtree(output_dir)
-    os.makedirs(output_dir)
+    click.echo(f'downloaded {len(answers)} answers from grand challenge')
 
-    print(f'\ncreating annotations in\n\t{output_dir}\nusing\n\t{args.mha}')
-
-    answers = _get_answers(args.api, args.slug, args.mha)
-
-    print('...')
-
-    successes = 0
-    errors = 0
-    with ThreadPoolExecutor(max_workers=min(32, (os.cpu_count() or 1) + 4)) as pool:
+    successes, errors = 0, 0
+    with ThreadPoolExecutor(max_workers=min(32, (os.cpu_count() or 1) + 4), initializer=initializer_worker) as pool:
         futures = {pool.submit(_write_annotation, a): a for a in answers}
         for future in tqdm(as_completed(futures), total=len(answers)):
             try:
                 successes += 1 if future.result() else 0
             except Exception as e:
-                print(f'Unexpected error: {e}')
+                click.echo(f'Unexpected error: {e}')
                 errors += 1
     skips = len(answers) - successes - errors
-    print(f'wrote {successes} annotations, with {skips} skipped and {errors} failed')
+    click.echo(f'wrote {successes} annotations, with {skips} skipped and {errors} failed')
