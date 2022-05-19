@@ -155,4 +155,6 @@ cython_debug/
 toyproblem/
 gc_upload.sh.txt
 .idea/workspace.*
-tests/output/**
+tests/output/*
+
+my/api.txt

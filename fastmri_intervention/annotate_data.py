@@ -1,31 +1,26 @@
-import shutil
-import click
-import gcapi
-import argparse
-import numpy as np
-import os
-from shapely.geometry import Polygon, Point, LineString, MultiPoint
-from quaternion import from_vector_part, rotate_vectors
-import SimpleITK as sitk
+import os, shutil, argparse, threading
 from dataclasses import dataclass
-from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List
 
-ifr = sitk.ImageFileReader()
-ifw = sitk.ImageFileWriter()
+import click, gcapi, numpy as np, SimpleITK as sitk
+from shapely.geometry import Polygon, Point, LineString, MultiPoint
+from quaternion import from_vector_part, rotate_vectors
+from tqdm import tqdm
 
 output_dir = 'output'
 
+# in mm
 diameter_base = 12
 diameter_needle = 6
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--api', type=str, required=True)
-parser.add_argument('--slug', type=str, required=True, default='needle-segmentation-for-interventional-radiology')
-parser.add_argument('--mha', type=str, required=True)
-parser.add_argument('--output', type=str, default=output_dir)
+context = threading.local()
+
+
+def initializer_worker():
+    # ifr, ifw = context.sitk
+    context.sitk = (sitk.ImageFileReader(), sitk.ImageFileWriter())
 
 
 @dataclass
@@ -68,7 +63,7 @@ class Boundary:
         thickness /= 2
         Q = from_vector_part((a - b) / np.linalg.norm(a - b))
 
-        # https://i.stack.i7mgur.com/iizbo.jpg
+        # https://i.stack.imgur.com/iizbo.jpg
         P1 = a + rotate_vectors(Q, [-1, 0, 0]) * thickness
         P2 = a + rotate_vectors(Q, [0, 1, 0]) * thickness
         P3 = a + rotate_vectors(Q, [1, 0, 0]) * thickness
@@ -91,7 +86,7 @@ class Boundary:
         return self._XY.contains(xy) and self._YZ.contains(yz)
 
 
-def get_answers(api: str, slug: str, mha_dir: Path) -> List[Answer]:
+def _get_answers(api: str, slug: str, mha_dir: Path) -> List[Answer]:
     mha = dict()
     for root, dirs, files in os.walk(mha_dir):
         for file in files:
@@ -153,7 +148,7 @@ def get_answers(api: str, slug: str, mha_dir: Path) -> List[Answer]:
     return [a for a in answers.values()]
 
 
-def write_annotation(answer: Answer) -> bool:
+def _write_annotation(answer: Answer) -> bool:
     if not answer.is_valid():
         return False
 
@@ -201,6 +196,17 @@ def write_annotation(answer: Answer) -> bool:
     return True
 
 
+# parser = argparse.ArgumentParser()
+# parser.add_argument('--api', type=str, required=True)
+# parser.add_argument('--slug', type=str, required=True, default='needle-segmentation-for-interventional-radiology')
+# parser.add_argument('--mha', type=str, required=True)
+# parser.add_argument('--output', type=str, default=output_dir)
+
+# mha = downloaded mha files, output = fully annotated mha files
+# try to way to mock all these actions with 1 mha start to finish for easier testing
+def write_annotations()
+
+
 if __name__ == '__main__':
     args = parser.parse_args()
     output_dir = Path(args.output).absolute()
@@ -215,14 +221,14 @@ if __name__ == '__main__':
 
     print(f'\ncreating annotations in\n\t{output_dir}\nusing\n\t{args.mha}')
 
-    answers = get_answers(args.api, args.slug, args.mha)
+    answers = _get_answers(args.api, args.slug, args.mha)
 
     print('...')
 
     successes = 0
     errors = 0
     with ThreadPoolExecutor(max_workers=min(32, (os.cpu_count() or 1) + 4)) as pool:
-        futures = {pool.submit(write_annotation, a): a for a in answers}
+        futures = {pool.submit(_write_annotation, a): a for a in answers}
         for future in tqdm(as_completed(futures), total=len(answers)):
             try:
                 successes += 1 if future.result() else 0
