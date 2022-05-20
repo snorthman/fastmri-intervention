@@ -159,3 +159,4 @@ tests/output/*
 
 my/api.txt
 RUMC.db
+tests/input/dcm2mha_settings.json

@@ -1,4 +1,4 @@
-import os, json, shutil
+import os, json
 from pathlib import Path
 
 import click, picai_prep

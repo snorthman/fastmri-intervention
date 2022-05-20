@@ -1,4 +1,6 @@
 Clone this repository.
 
-`pip install -r .\my\requirements.txt`
-`python ./my/workflow.py`
+```commandline
+pip install -r .\my\requirements.txt
+python ./my/workflow.py
+```
