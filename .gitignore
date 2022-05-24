@@ -157,6 +157,6 @@ gc_upload.sh.txt
 .idea/workspace.*
 tests/output/*
 
-my/api.txt
+**/api.txt
 RUMC.db
 tests/input/dcm2mha_settings.json

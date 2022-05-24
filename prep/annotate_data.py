@@ -194,7 +194,7 @@ def write_annotations(mha_dir: Path, annotation_dir: Path, slug: str, api: str):
 
     click.echo(f'\ncreating annotations in\n\t{annotation_dir}\nusing\n\t{mha_dir}')
 
-    answers = _get_answers(api, slug, mha_dir)
+    answers = _get_answers(mha_dir, slug, api)
 
     click.echo(f'downloaded {len(answers)} answers from grand challenge')
 

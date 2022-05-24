@@ -3,7 +3,7 @@ from pathlib import Path
 
 import gcapi, click
 
-import fastmri_intervention
+import prep
 
 
 def prompt_dir(text: str, default: str = None) -> Path:
@@ -37,10 +37,10 @@ def workflow(dcm2mha_json: Path = None, output_dir: Path = None, archive_dir: Pa
         raise ConnectionRefusedError(f'Invalid api key!\n\n{e}')
 
     if auto or click.confirm(f'Step 1: Convert raw archive to mha files @ {str(mha_dir)}\n\n'):
-        fastmri_intervention.dcm2mha(raw_archive, mha_dir, dcm2mha_json)
+        prep.dcm2mha(raw_archive, mha_dir, dcm2mha_json)
     if auto or click.confirm(f'Step 2: Upload mha files to grand challenge @ grand-challenge.org/reader-studies/{slug}/\n\n'):
         click.echo('Upload has already been performed and will be skipped!')
         # if False:
-        #   fastmri-intervention.upload_data(mha_dir, slug, api)
+        #   prep.upload_data(mha_dir, slug, api)
     if auto or click.confirm(f'Step 3: Download point annotations from grand challenge, and process into 3D annotations\n\n'):
-        fastmri_intervention.write_annotations(mha_dir, annotation_dir, slug, api_key)
+        prep.write_annotations(mha_dir, annotation_dir, slug, api_key)
