@@ -41,6 +41,6 @@ def workflow(dcm2mha_json: Path = None, output_dir: Path = None, archive_dir: Pa
     if auto or click.confirm(f'Step 2: Upload mha files to grand challenge @ grand-challenge.org/reader-studies/{slug}/\n\n'):
         click.echo('Upload has already been performed and will be skipped!')
         # if False:
-        #   fastmri_intervention.upload_data(mha_dir, slug, api)
+        #   fastmri-intervention.upload_data(mha_dir, slug, api)
     if auto or click.confirm(f'Step 3: Download point annotations from grand challenge, and process into 3D annotations\n\n'):
         fastmri_intervention.write_annotations(mha_dir, annotation_dir, slug, api_key)

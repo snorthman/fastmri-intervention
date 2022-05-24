@@ -1,9 +1,9 @@
 from setuptools import setup
 
 setup(
-    name='FastMRIInterventionReconstruction',
+    name='fastmri-intervention',
     version='0.1',
-    packages=['annotator'],
+    packages=['fastmri-intervention'],
     url='',
     license='MIT',
     author='C.R. Noordman',
