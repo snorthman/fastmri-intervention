@@ -18,8 +18,5 @@ setup(
         'SimpleITK~=2.1',
         'gcapi~=0.7',
         'picai-prep @ git+https://github.com/snorthman/picai_prep.git'
-    ],
-    dependency_links = [
-        'git+https://github.com/swansonk14/p_tqdm.git/@master'
     ]
 )

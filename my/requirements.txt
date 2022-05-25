@@ -1,2 +1,0 @@
-fastmri-intervention @ https://github.com/DIAGNijmegen/fastmri-intervention.git
-click~=8.1

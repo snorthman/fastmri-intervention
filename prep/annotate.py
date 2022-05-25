@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List
+from datetime import datetime
 
 import click, gcapi, numpy as np, SimpleITK as sitk
 from shapely.geometry import Polygon, Point, LineString, MultiPoint
@@ -10,8 +11,8 @@ from quaternion import from_vector_part, rotate_vectors
 from tqdm import tqdm
 
 # in mm
-diameter_base = 12
-diameter_needle = 6
+diameter_base = 6
+diameter_needle = 3
 
 
 @dataclass
@@ -32,19 +33,30 @@ class Annotation:
 
 @dataclass
 class Answer:
+    name: str = 'untitled'
     mha: Path = None
     base: Annotation = Annotation(0, 0, 0)
     needle: Annotation = Annotation(0, 0, 0)
     tip: Annotation = Annotation(0, 0, 0)
     no_needle: bool = True
+    _error: str = None
 
     # how to deal with more creators (snorthman)?
+
+    def _get_error(self) -> str:
+        return f'{self.name}: ' + self._error if self._error else 'Annotated'
+
+    def _set_error(self, error):
+        self._error = f'{type(error).__name__}({str(error)}'
+
+    error = property(fget=_get_error, fset=_set_error)
 
     def is_valid(self) -> bool:
         return self.mha is not None and \
                self.mha.exists() and \
                not all(p.is_zero() for p in [self.base, self.needle, self.tip]) and \
-               not self.no_needle
+               not self.no_needle and \
+               self._error is None
 
 
 class Boundary:
@@ -111,18 +123,6 @@ def _get_answers(mha_dir: Path, slug: str, api: str) -> List[Answer]:
         else:
             answers[display_set] = (a := Answer())
 
-        try:
-            ds = display_sets[display_set]['values']
-            img = None
-            for d in ds:
-                if d['interface']['slug'] == 'generic-medical-image':
-                    img = d['image']
-            a.mha =  mha[cases[img]['name']]
-        except Exception as e:
-            print(f'could not retrieve mha name: {e}')
-            continue
-
-
         if not (question := raw_questions.get(ra['question'])):
             click.echo(f'unknown question: {ra["question"]}')
             continue
@@ -136,11 +136,26 @@ def _get_answers(mha_dir: Path, slug: str, api: str) -> List[Answer]:
         elif question == 'Tip':
             a.tip = list_to_annotation(ra['answer']['point'])
 
+        try:
+            ds = display_sets[display_set]
+            img = None
+            for d in ds['values']:
+                if d['interface']['slug'] == 'generic-medical-image':
+                    img = d['image']
+            a.name = cases[img]['name']
+            a.mha = mha[a.name]
+        except Exception as e:
+            a.error = FileNotFoundError(str(e))
+            continue
+
     return [a for a in answers.values()]
 
 
-def write_annotations(mha_dir: Path, annotation_dir: Path, slug: str, api: str):
+def write_annotations(mha_dir: Path, out_dir: Path, slug: str, api: str, base_needle: int = 1, needle_tip: int = 2):
     context = threading.local()
+
+    if not all(0 < x < 3 for x in [base_needle, needle_tip]):
+        raise ValueError("base_needle and needle_tip must be 1 and/or 2")
 
     def initializer_worker():
         context.ifr = sitk.ImageFileReader()
@@ -149,50 +164,54 @@ def write_annotations(mha_dir: Path, annotation_dir: Path, slug: str, api: str):
         if not answer.is_valid():
             return False
 
-        context.ifr.SetFileName(str(answer.mha.absolute()))
-        context.ifr.ReadImageInformation()
-        mha: sitk.Image = context.ifr.Execute()
+        try:
+            context.ifr.SetFileName(str(answer.mha.absolute()))
+            context.ifr.ReadImageInformation()
+            mha: sitk.Image = context.ifr.Execute()
 
-        (sz := list(mha.GetSize())).reverse()
-        annotation = sitk.GetImageFromArray(np.zeros(sz))
-        annotation.SetDirection(mha.GetDirection())
-        annotation.SetOrigin(mha.GetOrigin())
-        annotation.SetSpacing(mha.GetSpacing())
-        [annotation.SetMetaData(k, mha.GetMetaData(k)) for k in mha.GetMetaDataKeys()]
+            (sz := list(mha.GetSize())).reverse()
+            annotation = sitk.GetImageFromArray(np.zeros(sz))
+            annotation.SetDirection(mha.GetDirection())
+            annotation.SetOrigin(mha.GetOrigin())
+            annotation.SetSpacing(mha.GetSpacing())
+            [annotation.SetMetaData(k, mha.GetMetaData(k)) for k in mha.GetMetaDataKeys()]
 
-        base, needle, tip = (p.as_ndarray() for p in [answer.base, answer.needle, answer.tip])
+            base, needle, tip = (p.as_ndarray() for p in [answer.base, answer.needle, answer.tip])
 
-        boundary_base_needle = Boundary(base, needle, 1, thickness=diameter_base)
-        boundary_needle_tip = Boundary(needle, tip, 2, thickness=diameter_needle)
+            boundary_base_needle = Boundary(base, needle, base_needle, thickness=diameter_base)
+            boundary_needle_tip = Boundary(needle, tip, needle_tip, thickness=diameter_needle)
 
-        for boundary in [boundary_base_needle, boundary_needle_tip]:
-            trail = [start := mha.TransformPhysicalPointToIndex(boundary.center)]
-            explored = {start}
+            for boundary in [boundary_base_needle, boundary_needle_tip]:
+                trail = [start := mha.TransformPhysicalPointToIndex(boundary.center)]
+                explored = {start}
 
-            while len(trail) > 0:
-                X, Y, Z = trail.pop()
-                try:
-                    annotation.SetPixel(X, Y, Z, boundary.label)
-                except Exception:
-                    pass
+                while len(trail) > 0:
+                    X, Y, Z = trail.pop()
+                    try:
+                        annotation.SetPixel(X, Y, Z, boundary.label)
+                    except Exception:
+                        pass
 
-                group = []
-                for x in [X - 1, X + 1]:
-                    group.append((x, Y, Z))
-                for y in [Y - 1, Y + 1]:
-                    group.append((X, y, Z))
-                for z in [Z - 1, Z + 1]:
-                    group.append((X, Y, z))
-                group = [g for g in group if g not in explored]
+                    group = []
+                    for x in [X - 1, X + 1]:
+                        group.append((x, Y, Z))
+                    for y in [Y - 1, Y + 1]:
+                        group.append((X, y, Z))
+                    for z in [Z - 1, Z + 1]:
+                        group.append((X, Y, z))
+                    group = [g for g in group if g not in explored]
 
-                trail += [g for g in group
-                          if boundary.contains(np.array(mha.TransformIndexToPhysicalPoint(g)))]
-                explored = explored.union(group)
+                    trail += [g for g in group
+                              if boundary.contains(np.array(mha.TransformIndexToPhysicalPoint(g)))]
+                    explored = explored.union(group)
 
-        sitk.WriteImage(annotation, fileName=str(annotation_dir / answer.mha.with_suffix('.nii.gz').name), useCompression=True)
-        return True
+            sitk.WriteImage(annotation, fileName=str(out_dir / answer.mha.with_suffix('.nii.gz').name), useCompression=True)
+            return True
+        except Exception as e:
+            answer.error = e
+            return False
 
-    click.echo(f'\ncreating annotations in\n\t{annotation_dir}\nusing\n\t{mha_dir}')
+    click.echo(f'\ncreating annotations in\n\t{out_dir}\nusing\n\t{mha_dir}')
 
     answers = _get_answers(mha_dir, slug, api)
 
@@ -209,3 +228,6 @@ def write_annotations(mha_dir: Path, annotation_dir: Path, slug: str, api: str):
                 errors += 1
     skips = len(answers) - successes - errors
     click.echo(f'wrote {successes} annotations, with {skips} skipped and {errors} failed')
+
+    with open(out_dir / f'{datetime.now().strftime("%Y%m%d%H%M%S")}.log', 'w') as f:
+        f.writelines([f'{a.error}\n' for a in answers if not a.is_valid()])
