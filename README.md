@@ -5,12 +5,13 @@
 Clone this repository to `path/to/module`.
 
 ```commandline
-pip install path/to/module
+cd path/to/module
+pip install .
 python -m ./prep --pelvis path/to/chansey/pelvis --archive path/to/radng_diag_prostate --json ./workflow.json
 ```
 
 where **./workflow.json** is
-```json
+```
 {
   "out_dir": "--pelvis / base output directory",
   "archive_dir": "--archive /Prostate-mpMRI-ScientificArchive/RUMC probably",
