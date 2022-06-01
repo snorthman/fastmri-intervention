@@ -22,6 +22,27 @@ def consume_timestamp(d: Path) -> bool:
     return b
 
 
+def summary(dm: DirectoryManager, archive_dir: Path, kwargs: dict):
+    def dir_exists(d: Path, error = False) -> str:
+        if d.exists() and d.is_dir():
+            return 'VALID'
+        if error:
+            logging.critical(e := '{d} does not exist or is not a directory.')
+            raise NotADirectoryError(e)
+
+    summary_archive_dir = f'{archive_dir.absolute()} {dir_exists(archive_dir)}' if archive_dir else 'NO ARCHIVE DIR'
+    summary_dm = '\n'.join([f'{n}: {d.absolute()} {dir_exists(d)}' for n, d in [('mha dir', dm.mha), ('annotations dir', dm.annotations), ('nnunet dir', dm.nnunet)]])
+    return f"""DIRECTORIES:
+output dir: {dm.output.absolute()} {dir_exists(dm.output, error=True)}
+archive dir: {summary_archive_dir}
+{summary_dm}
+
+JSON:
+{json.dumps(kwargs, indent=4)}
+"""
+
+
+
 def step_archive2mha(dm: DirectoryManager, archive_dir: Path):
     settings = Path(dm.output / 'dcm2mha_settings.json')
     if not settings.exists():
@@ -66,9 +87,19 @@ def workflow(pelvis: Path, radng_diag_prostate: Path = None, **kwargs) -> Docker
         raise KeyError(e)
     dm = DirectoryManager(pelvis, out_dir)
 
-    summary = f'{str(dm)}\n\n{json.dumps(kwargs, indent=4)}'
-    logging.debug(summary)
-    click.confirm(summary, abort=True)
+    archive_dir = kwargs.get('archive_dir', None)
+    if archive_dir:
+        archive_dir = radng_diag_prostate / archive_dir
+
+    def dir_exists(d: Path) -> str:
+        if d.exists() and d.is_dir():
+            return 'VALID'
+        logging.critical(e := '{d} does not exist or is not a directory.')
+        raise NotADirectoryError(e)
+
+    s = summary(dm, archive_dir, kwargs)
+    logging.debug(s)
+    click.confirm(s, abort=True)
 
     invalidate = kwargs.get('invalidate', [])
 
@@ -76,10 +107,6 @@ def workflow(pelvis: Path, radng_diag_prostate: Path = None, **kwargs) -> Docker
         if b := name in invalidate:
             logging.info(f'{name} invalidated.')
         return b
-
-    archive_dir = kwargs.get('archive_dir', None)
-    if archive_dir:
-        archive_dir = radng_diag_prostate / archive_dir
 
     gc_slug = kwargs.get('gc_slug', None)
     gc_api = kwargs.get('gc_api', None)
