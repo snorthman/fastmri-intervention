@@ -1,7 +1,7 @@
-import httpx, logging, os
+import httpx, logging, os, json
 from pathlib import Path
 
-import gcapi
+import gcapi, click
 
 from prep.convert import dcm2mha, generate_dcm2mha_json, mha2nnunet, generate_mha2nnunet_json
 from prep.upload import upload_data
@@ -65,6 +65,10 @@ def workflow(pelvis: Path, radng_diag_prostate: Path = None, **kwargs) -> Docker
         logging.critical(e := 'Output directory is required.')
         raise KeyError(e)
     dm = DirectoryManager(pelvis, out_dir)
+
+    summary = f'{str(dm)}\n\n{json.dumps(kwargs, indent=4)}'
+    logging.debug(summary)
+    click.confirm(summary, abort=True)
 
     invalidate = kwargs.get('invalidate', [])
 

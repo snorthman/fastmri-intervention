@@ -13,10 +13,10 @@ setup(
         'shapely~=1.8',
         'numpy~=1.22',
         'numpy-quaternion~=2022.4',
-        # 1.3.3 has a small bug for python3.10; fixed in live, waiting for proper release
         'tqdm~=4.64',
         'SimpleITK~=2.1',
         'gcapi~=0.7',
-        'picai-prep @ git+https://github.com/snorthman/picai_prep.git'
+        'picai-prep @ git+https://github.com/snorthman/picai_prep.git',
+        'click'
     ]
 )
