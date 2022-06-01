@@ -33,9 +33,3 @@ class DirectoryManager:
 
     def from_base(self, base: Path) -> 'DirectoryManager':
         return DirectoryManager(base, self._output_dir)
-
-    def __str__(self):
-        s = 'DIRECTORIES:\n'
-        for n, d in [('output dir', self.output), ('mha dir', self.mha), ('annotations dir', self.annotations), ('nnunet dir', self.nnunet)]:
-            s += f'{n}: {d.absolute()}\n'
-        return s

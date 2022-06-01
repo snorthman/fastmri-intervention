@@ -14,13 +14,12 @@ where **./workflow.json** is
 ```
 {
   "out_dir": "--pelvis / base output directory",
-  "archive_dir": "--archive /Prostate-mpMRI-ScientificArchive/RUMC probably",
+  "archive_dir": "--archive /Prostate-mpMRI-ScientificArchive/RUMC?",
   "gc_slug": "grand challenge reader study slug",
   "gc_api": "grand challenge API key",
-  "debug": true | false,
   "invalidate": ['mha', 'annotations', 'nnunet'] invalidates those data files,
   "task_id": 500-999,
-  "task_name": "fastmri_intervention probably",
+  "task_name": "fastmri_intervention?",
   "docker_version": 1+
 }
 ```

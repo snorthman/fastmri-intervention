@@ -80,7 +80,7 @@ def step_mha2nnunet(dm: DirectoryManager, name: str, id: int):
 def workflow(pelvis: Path, radng_diag_prostate: Path = None, **kwargs) -> Dockerfile:
     logging.basicConfig(filename=f'fastmri-intervention_{now()}.log',
                         encoding='utf-8',
-                        level=logging.DEBUG if kwargs.get('debug', False) else logging.INFO)
+                        level=logging.INFO)
 
     if not (out_dir := kwargs.get('out_dir', None)):
         logging.critical(e := 'Output directory is required.')
@@ -90,12 +90,6 @@ def workflow(pelvis: Path, radng_diag_prostate: Path = None, **kwargs) -> Docker
     archive_dir = kwargs.get('archive_dir', None)
     if archive_dir:
         archive_dir = radng_diag_prostate / archive_dir
-
-    def dir_exists(d: Path) -> str:
-        if d.exists() and d.is_dir():
-            return 'VALID'
-        logging.critical(e := '{d} does not exist or is not a directory.')
-        raise NotADirectoryError(e)
 
     s = summary(dm, archive_dir, kwargs)
     logging.debug(s)
