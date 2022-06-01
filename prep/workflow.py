@@ -96,7 +96,7 @@ def workflow(pelvis: Path, radng_diag_prostate: Path = None, **kwargs) -> Docker
         logging.info('Valid MHA directory found.')
     create_timestamp(dm.mha)
 
-    if not consume_timestamp(dm.annotations) or check_invalidate('annotation'):
+    if not consume_timestamp(dm.annotations) or check_invalidate('annotations'):
         if not gc_slug or gc_api:
             logging.critical('No valid annotations directory found, and no slug or api key provided!')
             raise FileNotFoundError()
