@@ -52,7 +52,7 @@ def dcm2mha(dcm_dir: Path, out_dir: Path, j: Path = None):
         input_path=dcm_dir.as_posix(),
         output_path=out_dir.as_posix(),
         settings_path=j.as_posix(),
-    ).convert(resolve_duplicates=False)
+    ).convert()
 
 
 def generate_mha2nnunet_json(mha_dir: Path, annotations_dir: Path, out_dir: Path) -> Path:
