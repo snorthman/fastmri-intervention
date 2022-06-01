@@ -31,6 +31,7 @@ def summary(dm: DirectoryManager, archive_dir: Path, kwargs: dict):
             raise NotADirectoryError(e)
         else:
             return ''
+    summary_settings = lambda s: f'{s}: {dm.output / f"{s}_settings.json"} {"<<EXISTS>>" if (dm.output / f"{s}_settings.json").exists() else "<<MISSING>>"}'
 
     summary_archive_dir = f'{archive_dir.absolute()}  {dir_exists(archive_dir)}' if archive_dir else 'NO ARCHIVE DIR'
     summary_dm = '\n'.join([f'{n}: {d.absolute()}  {dir_exists(d)}' for n, d in [('mha dir', dm.mha), ('annotations dir', dm.annotations), ('nnunet dir', dm.nnunet)]])
@@ -38,6 +39,10 @@ def summary(dm: DirectoryManager, archive_dir: Path, kwargs: dict):
 output dir: {dm.output.absolute()}  {dir_exists(dm.output, error=True)}
 archive dir: {summary_archive_dir}
 {summary_dm}
+
+SETTINGS:
+{summary_settings('dcm2mha')}
+{summary_settings('mha2nnunet')}
 
 JSON:
 {json.dumps(kwargs, indent=4)}
