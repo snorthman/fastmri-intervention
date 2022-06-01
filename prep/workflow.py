@@ -25,15 +25,17 @@ def consume_timestamp(d: Path) -> bool:
 def summary(dm: DirectoryManager, archive_dir: Path, kwargs: dict):
     def dir_exists(d: Path, error = False) -> str:
         if d.exists() and d.is_dir():
-            return 'VALID'
+            return '<<EXISTS>>'
         if error:
             logging.critical(e := '{d} does not exist or is not a directory.')
             raise NotADirectoryError(e)
+        else:
+            return ''
 
-    summary_archive_dir = f'{archive_dir.absolute()} {dir_exists(archive_dir)}' if archive_dir else 'NO ARCHIVE DIR'
-    summary_dm = '\n'.join([f'{n}: {d.absolute()} {dir_exists(d)}' for n, d in [('mha dir', dm.mha), ('annotations dir', dm.annotations), ('nnunet dir', dm.nnunet)]])
+    summary_archive_dir = f'{archive_dir.absolute()}  {dir_exists(archive_dir)}' if archive_dir else 'NO ARCHIVE DIR'
+    summary_dm = '\n'.join([f'{n}: {d.absolute()}  {dir_exists(d)}' for n, d in [('mha dir', dm.mha), ('annotations dir', dm.annotations), ('nnunet dir', dm.nnunet)]])
     return f"""DIRECTORIES:
-output dir: {dm.output.absolute()} {dir_exists(dm.output, error=True)}
+output dir: {dm.output.absolute()}  {dir_exists(dm.output, error=True)}
 archive dir: {summary_archive_dir}
 {summary_dm}
 
