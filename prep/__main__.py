@@ -4,6 +4,11 @@ from pathlib import Path
 from prep.workflow import workflow
 
 
+def cli():
+    args = parser.parse_args()
+    args.func(args)
+
+
 def run_prepare(args):
     with open(args.json) as j:
         settings = json.load(j)
@@ -18,8 +23,3 @@ parser.add_argument("--pelvis", type=Path, required=True,
 parser.add_argument("--archive", type=Path, required=False,
                  help="radng_diag_prostate root directory")
 parser.set_defaults(func=run_prepare)
-
-
-if __name__ == '__main__':
-    args = parser.parse_args()
-    args.func(args)

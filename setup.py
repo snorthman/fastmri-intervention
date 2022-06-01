@@ -2,8 +2,8 @@ from setuptools import setup
 
 setup(
     name='fastmri-intervention-prep',
-    version='1.1',
-    packages=['fastmri-intervention-prep'],
+    version='1.2',
+    packages=['prep'],
     license='MIT',
     author='C.R. Noordman',
     author_email='stan.noordman@radboudumc.nl',
@@ -18,5 +18,10 @@ setup(
         'gcapi~=0.7',
         'picai-prep @ git+https://github.com/snorthman/picai_prep.git',
         'click'
-    ]
+    ],
+    entry_points={
+        'console_scripts': [
+            'fastmri-intervention-prep = prep:cli',
+        ]
+    }
 )
