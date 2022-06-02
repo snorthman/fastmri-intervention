@@ -20,13 +20,13 @@ def assert_dir(dir: Path, contents):
 
 @pytest.fixture(scope="module")
 def inputs():
-    dm = DirectoryManager('tests/output', '.')
+    dm = DirectoryManager('output', '.')
     archive_dir = Path('//umcsanfsclp01.umcn.nl/radng_diag_prostate/archives/Prostate-mpMRI-ScientificArchive/RUMC/10880')
     slug = 'needle-segmentation-for-interventional-radiology'
     dm.output.mkdir(exist_ok=True)
 
     try:
-        with open('tests/input/api.txt') as f:
+        with open('input/api.txt') as f:
             api_key = f.readline()
     except FileNotFoundError:
         api_key = None
