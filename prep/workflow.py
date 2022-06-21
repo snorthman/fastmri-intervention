@@ -49,7 +49,6 @@ JSON:
 """
 
 
-
 def step_archive2mha(dm: DirectoryManager, archive_dir: Path):
     settings = Path(dm.output / 'dcm2mha_settings.json')
     if not settings.exists():

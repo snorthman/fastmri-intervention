@@ -35,10 +35,12 @@ def generate_dcm2mha_json(in_dir: Path, out_dir: Path) -> Path:
         archive.update(a)
 
     mappings = {'needle': {'SeriesDescription': ['naald', 'nld']}}
+    options = {'random_seed': 0, 'allow_duplicates': True}
 
     j = out_dir / 'dcm2mha_settings.json'
     with open(j, 'w') as f:
-        json.dump({"mappings": mappings,
+        json.dump({"options": options,
+                   "mappings": mappings,
                    "archive": list([a.to_dict() for a in archive])}, f, indent=4)
 
     return j
@@ -49,9 +51,9 @@ def dcm2mha(dcm_dir: Path, out_dir: Path, j: Path = None):
         j = generate_dcm2mha_json(dcm_dir, out_dir)
 
     picai_prep.Dicom2MHAConverter(
-        input_path=dcm_dir.as_posix(),
-        output_path=out_dir.as_posix(),
-        settings_path=j.as_posix(),
+        input_dir=dcm_dir.as_posix(),
+        output_dir=out_dir.as_posix(),
+        dcm2mha_settings=j.as_posix(),
     ).convert()
 
 
