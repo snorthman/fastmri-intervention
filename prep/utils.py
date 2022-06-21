@@ -20,6 +20,11 @@ def nnunet_dirs(base_dir: Path):
 
 class DirectoryManager:
     def __init__(self, base: Path, output_dir: Path):
+        """
+
+        :param base: Working directory
+        :param output_dir: Output directory to store all output in (base / output_dir)
+        """
         self._output_dir = Path(output_dir)
         self.output = base / self._output_dir
         self.mha = self.output / 'mha'
