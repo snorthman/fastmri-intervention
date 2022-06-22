@@ -11,7 +11,6 @@ def _walk_archive(in_dir: Path, endswith: str, add_func: Callable[[Path, str], D
     archive = set()
     for dirpath, dirnames, filenames in os.walk(in_dir):
         for fn in [f for f in filenames if f.endswith(endswith)]:
-            breakpoint()
             archive.add(Box(add_func(Path(dirpath), fn), frozen_box=True))
     return archive
 

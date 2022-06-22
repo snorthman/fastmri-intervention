@@ -119,6 +119,8 @@ def workflow(**kwargs):
     task_name = kwargs.get('task_name', 'fastmri_intervention')
     task_id = kwargs.get('task_id', 500)
 
+    out_dir.mkdir(parents=True, exist_ok=True)
+
     if not consume_timestamp(dm.mha) or check_invalidate('mha'):
         if not archive_dir:
             logging.critical('No valid MHA directory found, and no archive directory provided!')
