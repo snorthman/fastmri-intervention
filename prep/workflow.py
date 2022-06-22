@@ -28,7 +28,7 @@ def summary(dm: DirectoryManager, archive_dir: Path, kwargs: dict):
         if d.exists() and d.is_dir():
             return '<<EXISTS>>'
         if error:
-            logging.critical(e := '{d} does not exist or is not a directory.')
+            logging.critical(e := f'{d} does not exist or is not a directory.')
             raise NotADirectoryError(e)
         else:
             return ''
