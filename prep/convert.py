@@ -11,6 +11,7 @@ def _walk_archive(in_dir: Path, endswith: str, add_func: Callable[[Path, str], D
     archive = set()
     for dirpath, dirnames, filenames in os.walk(in_dir):
         for fn in [f for f in filenames if f.endswith(endswith)]:
+            breakpoint()
             archive.add(Box(add_func(Path(dirpath), fn), frozen_box=True))
     return archive
 
@@ -64,7 +65,7 @@ def generate_mha2nnunet_json(mha_dir: Path, annotations_dir: Path, out_dir: Path
                         "patient_id": dp.parts[-1],
                         "study_id": fn.split(sep='_')[1],
                         "scan_paths": [(dp / fn).relative_to(mha_dir).as_posix()],
-                        "annotation_path": Path(fn).relative_to(annotations_dir).with_suffix('.nii.gz').as_posix()
+                        "annotation_path": Path(dp / fn).with_suffix('.nii.gz').as_posix()
                     })
 
     click.echo(f"Gathering MHAs from {mha_dir} and its subdirectories")
@@ -121,10 +122,11 @@ def mha2nnunet(name: str, id: int, mha_dir: Path, annotations_dir: Path, out_dir
     if not j or not j.exists():
         j = generate_mha2nnunet_json(mha_dir, annotations_dir, out_dir)
 
-    with open(j, 'rw') as f:
+    with open(j, 'r') as f:
         settings = json.load(f)
         settings['dataset_json']['task'] = f"Task{id}_{name}"
-        json.dump(settings)
+    with open(j, 'w') as f:
+        json.dump(settings, f)
 
     picai_prep.MHA2nnUNetConverter(
         input_path=mha_dir.as_posix(),
