@@ -25,7 +25,7 @@ def generate_dcm2mha_json(in_dir: Path, out_dir: Path) -> Path:
                       })
 
     click.echo(f"Gathering DICOMs from {in_dir} and its subdirectories")
-    dirs = list(in_dir.iterdir())
+    dirs = [d.absolute() for d in in_dir.iterdir()]
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         archives = list(tqdm(executor.map(walk_dcm_archive, dirs), total=len(dirs)))

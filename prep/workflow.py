@@ -11,6 +11,7 @@ from prep.utils import now, remake_dir, DirectoryManager
 
 
 def create_timestamp(d: Path):
+    d.mkdir(parents=True, exist_ok=True)
     with open(d / '.timestamp', 'w') as f:
         f.write(now())
 
@@ -60,6 +61,11 @@ def step_archive2mha(dm: DirectoryManager, archive_dir: Path):
     dcm2mha(archive_dir, dm.mha, settings)
 
 
+def step_upload(dm: DirectoryManager, gc_slug: str, gc_api: str):
+    logging.info(f'Uploading mha files @ {dm.mha} to grand-challenge.org/reader-studies/{gc_slug}')
+    upload_data(dm.mha, gc_slug, gc_api)
+
+
 def step_annotations(dm: DirectoryManager, gc_slug: str, gc_api: str):
     logging.info(f'Testing connection to grand-challenge.org ...')
     try:
@@ -83,7 +89,7 @@ def step_mha2nnunet(dm: DirectoryManager, name: str, id: int):
     mha2nnunet(name, id, dm.mha, dm.annotations, dm.nnunet)
 
 
-def workflow(pelvis: Path, radng_diag_prostate: Path = None, **kwargs) -> Dockerfile:
+def workflow(pelvis: Path, radng_diag_prostate: Path = None, **kwargs):
     logging.basicConfig(filename=f'fastmri-intervention_{now()}.log',
                         encoding='utf-8',
                         level=logging.INFO)
@@ -122,6 +128,16 @@ def workflow(pelvis: Path, radng_diag_prostate: Path = None, **kwargs) -> Docker
     else:
         logging.info('Valid MHA directory found.')
     create_timestamp(dm.mha)
+
+    upload = dm.output / 'upload'
+    if not consume_timestamp(upload) or check_invalidate('upload'):
+        if not archive_dir:
+            logging.critical('No valid MHA directory found, and no archive directory provided!')
+            raise FileNotFoundError()
+        step_upload(dm, gc_slug, gc_api)
+    else:
+        logging.info('Upload skipped.')
+    create_timestamp(upload)
 
     if not consume_timestamp(dm.annotations) or check_invalidate('annotations'):
         if not gc_slug or gc_api:

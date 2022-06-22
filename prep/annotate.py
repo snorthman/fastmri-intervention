@@ -189,7 +189,7 @@ def write_annotations(mha_dir: Path, out_dir: Path, slug: str, api: str, base_ne
                     X, Y, Z = trail.pop()
                     try:
                         annotation.SetPixel(X, Y, Z, boundary.label)
-                    except Exception:
+                    except:
                         pass
 
                     group = []

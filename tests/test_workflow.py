@@ -20,13 +20,13 @@ def assert_dir(dir: Path, contents):
 
 @pytest.fixture(scope="module")
 def inputs():
-    dm = DirectoryManager(Path('.'), Path('output'))
-    archive_dir = Path('//umcsanfsclp01.umcn.nl/radng_diag_prostate/archives/Prostate-mpMRI-ScientificArchive/RUMC/10880')
+    dm = DirectoryManager(Path('tests'), Path('output'))
+    archive_dir = Path('tests/input/10880')
     slug = 'needle-segmentation-for-interventional-radiology'
-    dm.output.mkdir(exist_ok=True)
+    dm.output.mkdir(parents=True, exist_ok=True)
 
     try:
-        with open('input/api.txt') as f:
+        with open('tests/input/api.txt') as f:
             api_key = f.readline()
     except FileNotFoundError:
         api_key = None
@@ -40,9 +40,24 @@ def test_dcm2mha(inputs):
     prep.convert.dcm2mha(archive_dir, remake_dir(dm.mha))
 
     # specific to 10880
-    assert_dir(dm.mha / '10880', ['10880_182386710290888504267667945338785981449_trufi.mha',
-                                                '10880_230637160173546023230130340285289177320_trufi.mha',
-                                                '10880_244375702689236279917785509476093985322_trufi.mha'])
+    assert_dir(dm.mha / '10880', ['10880_182386710290888504267667945338785981449_needle_0.mha',
+                                  '10880_182386710290888504267667945338785981449_needle_1.mha',
+                                  '10880_182386710290888504267667945338785981449_needle_2.mha',
+                                  '10880_182386710290888504267667945338785981449_needle_3.mha',
+                                  '10880_182386710290888504267667945338785981449_needle_4.mha',
+                                  '10880_182386710290888504267667945338785981449_needle_5.mha',
+                                  '10880_230637160173546023230130340285289177320_needle_0.mha',
+                                  '10880_230637160173546023230130340285289177320_needle_1.mha',
+                                  '10880_230637160173546023230130340285289177320_needle_2.mha',
+                                  '10880_230637160173546023230130340285289177320_needle_3.mha',
+                                  '10880_230637160173546023230130340285289177320_needle_4.mha',
+                                  '10880_230637160173546023230130340285289177320_needle_5.mha',
+                                  '10880_230637160173546023230130340285289177320_needle_6.mha',
+                                  '10880_230637160173546023230130340285289177320_needle_7.mha',
+                                  '10880_244375702689236279917785509476093985322_needle_0.mha',
+                                  '10880_244375702689236279917785509476093985322_needle_1.mha',
+                                  '10880_244375702689236279917785509476093985322_needle_2.mha',
+                                  '10880_244375702689236279917785509476093985322_needle_3.mha'])
 
 
 def test_upload():
@@ -79,4 +94,4 @@ def test_mha2nnunet(inputs):
 def test_prepare():
     with open('tests/input/workflow.json') as j:
         workflow = json.load(j)
-    prep.workflow.workflow(pelvis=Path('.'), radng_diag_prostate=Path('//umcsanfsclp01.umcn.nl/radng_diag_prostate'), **workflow)
+    prep.workflow.workflow(pelvis=Path('.'), radng_diag_prostate=Path('tests/input/10880'), **workflow)
