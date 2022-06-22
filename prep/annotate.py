@@ -11,8 +11,8 @@ from quaternion import from_vector_part, rotate_vectors
 from tqdm import tqdm
 
 # in mm
-diameter_base = 6
-diameter_needle = 3
+diameter_base = 12
+diameter_needle = 6
 
 
 @dataclass
@@ -54,7 +54,7 @@ class Answer:
     def is_valid(self) -> bool:
         return self.mha is not None and \
                self.mha.exists() and \
-               not all(p.is_zero() for p in [self.base, self.needle, self.tip]) and \
+               not any(p.is_zero() for p in [self.base, self.needle, self.tip]) and \
                not self.no_needle and \
                self._error is None
 
@@ -129,7 +129,7 @@ def _get_answers(mha_dir: Path, slug: str, api: str) -> List[Answer]:
         question = question['question_text']
         if question == 'No needle':
             a.no_needle = ra['answer']
-        elif question == 'Base':
+        elif question == 'Casing':
             a.base = list_to_annotation(ra['answer']['point'])
         elif question == 'Needle':
             a.needle = list_to_annotation(ra['answer']['point'])

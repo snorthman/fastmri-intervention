@@ -12,14 +12,12 @@ def cli():
 def run_prepare(args):
     with open(args.json) as j:
         settings = json.load(j)
-    workflow(Path(args.pelvis), Path(args.archive) if args.archive else None, **settings)
+    workflow(base=args.base, **settings)
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--json", type=Path, required=True,
-                 help="Path to JSON settings file")
-parser.add_argument("--pelvis", type=Path, required=True,
-                 help="chamsey/pelvis root directory")
-parser.add_argument("--archive", type=Path, required=False,
-                 help="radng_diag_prostate root directory")
+                 help="Path to workflow.json settings file")
+parser.add_argument("--base", type=Path, required=False,
+                 help="Base root directory")
 parser.set_defaults(func=run_prepare)

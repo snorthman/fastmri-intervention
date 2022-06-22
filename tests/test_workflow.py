@@ -22,7 +22,7 @@ def assert_dir(dir: Path, contents):
 def inputs():
     dm = DirectoryManager(Path('tests'), Path('output'))
     archive_dir = Path('tests/input/10880')
-    slug = 'needle-segmentation-for-interventional-radiology'
+    slug = 'needle-segmentation-for-interventional-radiology-2'
     dm.output.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -94,4 +94,4 @@ def test_mha2nnunet(inputs):
 def test_prepare():
     with open('tests/input/workflow.json') as j:
         workflow = json.load(j)
-    prep.workflow.workflow(pelvis=Path('.'), radng_diag_prostate=Path('tests/input/10880'), **workflow)
+    prep.workflow.workflow(base=Path('.').absolute(), **workflow)
