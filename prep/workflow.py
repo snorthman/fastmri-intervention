@@ -89,7 +89,7 @@ def step_mha2nnunet(dm: DirectoryManager, name: str, id: int):
     mha2nnunet(name, id, dm.mha, dm.annotations, dm.nnunet)
 
 
-def workflow(base: Path, **kwargs):
+def workflow(**kwargs):
     logging.basicConfig(filename=f'fastmri-intervention_{now()}.log',
                         encoding='utf-8',
                         level=logging.INFO)
@@ -100,7 +100,7 @@ def workflow(base: Path, **kwargs):
     except:
         logging.critical(e := 'Output directory is required.' if 'out_dir' not in kwargs else 'Archive directory is required.')
         raise KeyError(e)
-    dm = DirectoryManager(base, out_dir)
+    dm = DirectoryManager(Path('.'), out_dir)
 
     s = summary(dm, archive_dir, kwargs)
     logging.debug(s)
