@@ -94,15 +94,13 @@ def workflow(base: Path, **kwargs):
                         encoding='utf-8',
                         level=logging.INFO)
 
-    if not (out_dir := kwargs.get('out_dir', None)):
-        logging.critical(e := 'Output directory is required.')
+    try:
+        out_dir = Path(kwargs['out_dir'])
+        archive_dir = Path(kwargs['archive_dir'])
+    except:
+        logging.critical(e := 'Output directory is required.' if 'out_dir' not in kwargs else 'Archive directory is required.')
         raise KeyError(e)
     dm = DirectoryManager(base, out_dir)
-
-    archive_dir = kwargs.get('archive_dir', None)
-    if not archive_dir:
-        logging.critical(e := 'Archive directory is required.')
-        raise KeyError(e)
 
     s = summary(dm, archive_dir, kwargs)
     logging.debug(s)
