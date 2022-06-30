@@ -1,6 +1,8 @@
-import shutil
+import shutil, httpx, logging
 from pathlib import Path
 from datetime import datetime
+
+import gcapi
 
 
 def remake_dir(dir: Path) -> Path:
@@ -28,6 +30,7 @@ class DirectoryManager:
         self._output_dir = Path(output_dir)
         self.output = base / self._output_dir
         self.mha = self.output / 'mha'
+        self.upload = self.output / 'upload'
         self.annotations = self.output / 'annotations'
         self.nnunet = self.output / 'nnunet'
         self.nnunet_preprocessed = self.output / 'nnunet_preprocessed'
@@ -38,3 +41,57 @@ class DirectoryManager:
 
     def from_base(self, base: Path) -> 'DirectoryManager':
         return DirectoryManager(base, self._output_dir)
+
+
+class GCAPI:
+    def __init__(self, slug: str, api: str):
+        self.client = gcapi.Client(token=api)
+        self.slug = slug
+
+        try:
+            rs = next(self.client.reader_studies.iterate_all(params={"slug": self.slug}))
+        except httpx.HTTPStatusError as e:
+            raise ConnectionRefusedError(f'Invalid api key!\n\n{e}')
+
+        self._questions = {v['api_url']: v for v in rs['questions']}
+        self._gen_answers = self.client.reader_studies.answers.mine.iterate_all(
+            params={"question__reader_study": rs["pk"]})
+        self._answers = None
+        self._gen_display_sets = self.client.reader_studies.display_sets.iterate_all(
+            params={"question__reader_study": rs["pk"]})
+        self._display_sets = None
+        self._gen_cases = self.client.images.iterate_all(params={"question__reader_study": rs["pk"]})
+        self._cases = None
+
+        logging.info('Connected to GC.')
+
+    @property
+    def questions(self):
+        return self._questions
+
+    @property
+    def answers(self):
+        if self._answers is None:
+            def gen():
+                yield 'raw_answers', list(self._gen_answers)
+            get = {name: {v['api_url']: v for v in y} for name, y in gen()}
+            self._answers = get['raw_answers']
+        return self._answers
+
+    @property
+    def display_sets(self):
+        if self._display_sets is None:
+            def gen():
+                yield 'raw_answers', list(self._gen_display_sets)
+            get = {name: {v['api_url']: v for v in y} for name, y in gen()}
+            self._display_sets = get['display_sets']
+        return self._display_sets
+
+    @property
+    def cases(self):
+        if self._cases is None:
+            def gen():
+                yield 'cases', list(self._gen_cases)
+            get = {name: {v['api_url']: v for v in y} for name, y in gen()}
+            self._cases = get['cases']
+        return self._cases

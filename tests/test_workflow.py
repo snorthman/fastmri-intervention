@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-import prep.convert, prep.annotate, prep.workflow
-from prep.utils import DirectoryManager
+import prep.convert, prep.annotate, prep.workflow, prep.upload
+from prep.utils import DirectoryManager, GCAPI
 
 
 def remake_dir(dir: Path) -> Path:
@@ -30,12 +30,13 @@ def inputs():
             api_key = f.readline()
     except FileNotFoundError:
         api_key = None
+    gc = GCAPI(slug, api_key)
 
-    return dm, archive_dir, slug, api_key
+    return dm, archive_dir, gc
 
 
 def test_dcm2mha(inputs):
-    dm, archive_dir, _, _ = inputs
+    dm, archive_dir, _ = inputs
 
     prep.convert.dcm2mha(archive_dir, remake_dir(dm.mha))
 
@@ -60,13 +61,15 @@ def test_dcm2mha(inputs):
                                   '10880_244375702689236279917785509476093985322_needle_3.mha'])
 
 
-def test_upload():
-    pass
+def test_upload(inputs):
+    dm, archive_dir, gc = inputs
+    prep.upload.upload_data(dm.mha, gc)
+    prep.upload.delete_all_data(gc)
 
 
 def test_annotations(inputs):
-    dm, _, slug, api_key = inputs
-    prep.annotate.write_annotations(dm.mha, remake_dir(dm.annotations), slug, api_key)
+    dm, _, gc = inputs
+    prep.annotate.write_annotations(dm.mha, remake_dir(dm.annotations), gc)
 
     # specific to 10880
     # assert_dir(dm.annotations, ['10880_182386710290888504267667945338785981449_trufi.nii.gz',
@@ -75,7 +78,7 @@ def test_annotations(inputs):
 
 
 def test_mha2nnunet(inputs):
-    dm, _, _, _= inputs
+    dm, _, _ = inputs
 
     prep.convert.mha2nnunet('fastmri_intervention', 500, dm.mha, dm.annotations, remake_dir(dm.nnunet))
 

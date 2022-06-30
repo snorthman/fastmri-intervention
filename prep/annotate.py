@@ -10,6 +10,8 @@ from shapely.geometry import Polygon, Point, LineString, MultiPoint
 from quaternion import from_vector_part, rotate_vectors
 from tqdm import tqdm
 
+from prep.utils import GCAPI
+
 # in mm
 diameter_base = 12
 diameter_needle = 6
@@ -89,30 +91,17 @@ class Boundary:
         return self._XY.contains(xy) and self._YZ.contains(yz)
 
 
-def _get_answers(mha_dir: Path, slug: str, api: str) -> List[Answer]:
+def _get_answers(mha_dir: Path, gc: GCAPI) -> List[Answer]:
     mha = dict()
     for root, dirs, files in os.walk(mha_dir):
         for file in files:
             if file.endswith('.mha'):
                 mha[file] = Path(root) / file
 
-    client = gcapi.Client(token=api)
-    rs = next(client.reader_studies.iterate_all(params={"slug": slug}))
-
-    gen_raw_answers = client.reader_studies.answers.mine.iterate_all(params={"question__reader_study": rs["pk"]})
-    gen_display_sets = client.reader_studies.display_sets.iterate_all(params={"question__reader_study": rs["pk"]})
-    gen_cases = client.images.iterate_all(params={"question__reader_study": rs["pk"]})
-
-    def gen():
-        for name, g in [('raw_answers', gen_raw_answers), ('display_sets', gen_display_sets), ('cases', gen_cases)]:
-            yield name, list(g)
-
-    get = {name: {v['api_url']: v for v in y} for name, y in gen()}
-
-    raw_questions = {v['api_url']: v for v in rs['questions']}
-    raw_answers = get['raw_answers']
-    display_sets = get['display_sets']
-    cases = get['cases']
+    raw_questions = gc.questions
+    raw_answers = gc.answers
+    display_sets = gc.display_sets
+    cases = gc.cases
 
     list_to_annotation = lambda array: Annotation(x=array[0], y=array[1], z=array[2])
 
@@ -151,7 +140,7 @@ def _get_answers(mha_dir: Path, slug: str, api: str) -> List[Answer]:
     return [a for a in answers.values()]
 
 
-def write_annotations(mha_dir: Path, out_dir: Path, slug: str, api: str, base_needle: int = 1, needle_tip: int = 2):
+def write_annotations(mha_dir: Path, out_dir: Path, gc: GCAPI, base_needle: int = 1, needle_tip: int = 2):
     context = threading.local()
 
     if not all(0 < x < 3 for x in [base_needle, needle_tip]):
@@ -213,7 +202,7 @@ def write_annotations(mha_dir: Path, out_dir: Path, slug: str, api: str, base_ne
 
     click.echo(f'\ncreating annotations in\n\t{out_dir}\nusing\n\t{mha_dir}')
 
-    answers = _get_answers(mha_dir, slug, api)
+    answers = _get_answers(mha_dir, gc)
 
     click.echo(f'downloaded {len(answers)} answers from grand challenge')
 

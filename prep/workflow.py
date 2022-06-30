@@ -1,13 +1,13 @@
-import httpx, logging, os, json
+import logging, os, json
 from pathlib import Path
 
-import gcapi, click
+import click
 
 from prep.convert import dcm2mha, generate_dcm2mha_json, mha2nnunet, generate_mha2nnunet_json
 from prep.upload import upload_data
 from prep.annotate import write_annotations
 from prep.dockerfile import Dockerfile
-from prep.utils import now, remake_dir, DirectoryManager
+from prep.utils import now, remake_dir, DirectoryManager, GCAPI
 
 
 def create_timestamp(d: Path):
@@ -61,21 +61,14 @@ def step_archive2mha(dm: DirectoryManager, archive_dir: Path):
     dcm2mha(archive_dir, dm.mha, settings)
 
 
-def step_upload(dm: DirectoryManager, gc_slug: str, gc_api: str):
-    logging.info(f'Uploading mha files @ {dm.mha} to grand-challenge.org/reader-studies/{gc_slug}')
-    upload_data(dm.mha, gc_slug, gc_api)
+def step_upload(dm: DirectoryManager, gc: GCAPI):
+    logging.info(f'Uploading mha files @ {dm.mha} to grand-challenge.org/reader-studies/{gc.slug}')
+    upload_data(dm.mha, gc)
 
 
-def step_annotations(dm: DirectoryManager, gc_slug: str, gc_api: str):
-    logging.info(f'Testing connection to grand-challenge.org ...')
-    try:
-        next(gcapi.Client(token=gc_api).reader_studies.iterate_all(params={"slug": gc_slug}))
-    except httpx.HTTPStatusError as e:
-        raise ConnectionRefusedError(f'Invalid api key!\n\n{e}')
-    logging.info('Connected.')
-
+def step_annotations(dm: DirectoryManager, gc: GCAPI):
     remake_dir(dm.annotations)
-    write_annotations(dm.mha, dm.annotations, gc_slug, gc_api)
+    write_annotations(dm.mha, dm.annotations, gc)
 
 
 def step_mha2nnunet(dm: DirectoryManager, name: str, id: int):
@@ -96,6 +89,7 @@ def workflow(**kwargs):
 
     try:
         out_dir = Path(kwargs['out_dir'])
+        out_dir.mkdir(parents=True, exist_ok=True)
         archive_dir = Path(kwargs['archive_dir'])
     except:
         logging.critical(e := 'Output directory is required.' if 'out_dir' not in kwargs else 'Archive directory is required.')
@@ -113,13 +107,10 @@ def workflow(**kwargs):
             logging.info(f'{name} invalidated.')
         return b
 
-    gc_slug = kwargs.get('gc_slug', None)
-    gc_api = kwargs.get('gc_api', None)
+    gc = GCAPI(kwargs.get('gc_slug', None), kwargs.get('gc_api', None))
 
     task_name = kwargs.get('task_name', 'fastmri_intervention')
     task_id = kwargs.get('task_id', 500)
-
-    out_dir.mkdir(parents=True, exist_ok=True)
 
     if not consume_timestamp(dm.mha) or check_invalidate('mha'):
         if not archive_dir:
@@ -130,21 +121,17 @@ def workflow(**kwargs):
         logging.info('Valid MHA directory found.')
     create_timestamp(dm.mha)
 
-    upload = dm.output / 'upload'
-    if not consume_timestamp(upload) or check_invalidate('upload'):
+    if not consume_timestamp(dm.upload) or check_invalidate('upload'):
         if not archive_dir:
             logging.critical('No valid MHA directory found, and no archive directory provided!')
             raise FileNotFoundError()
-        step_upload(dm, gc_slug, gc_api)
+        step_upload(dm, gc)
     else:
         logging.info('Upload skipped.')
-    create_timestamp(upload)
+    create_timestamp(dm.upload)
 
     if not consume_timestamp(dm.annotations) or check_invalidate('annotations'):
-        if not gc_slug or gc_api:
-            logging.critical('No valid annotations directory found, and no slug or api key provided!')
-            raise FileNotFoundError()
-        step_annotations(dm, gc_slug, gc_api)
+        step_annotations(dm, gc)
     else:
         logging.info('Valid annotation directory found.')
     create_timestamp(dm.annotations)
