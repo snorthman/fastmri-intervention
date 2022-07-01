@@ -95,3 +95,52 @@ class GCAPI:
             get = {name: {v['api_url']: v for v in y} for name, y in gen()}
             self._cases = get['cases']
         return self._cases
+
+
+workflow_schema = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+        "out_dir": {
+            "description": "where all output is sent",
+            "type": "string"
+        },
+        "archive_dir": {
+            "description": "where all dicom data is",
+            "type": "string"
+        },
+        "gc_slug": {
+            "description": "Grand Challenge reader study slug",
+            "type": "string"
+        },
+        "gc_api": {
+            "description": "Grand Challenge API key",
+            "type": "string",
+            "minLength": 64,
+            "maxLength": 64
+        },
+        "task_name": {
+            "description": "for nnUnet",
+            "type": "string"
+        },
+        "task_id": {
+            "description": "for nnUnet, between 500 and 999",
+            "type": "integer",
+            "minimum": 500,
+            "maximum": 999
+        },
+        "docker_version": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "run": {
+            "description": "select tasks to run, order is non-configurable",
+            "type": "array",
+            "contains": {
+                "type": "string",
+                "enum": ["dcm2mha", "upload", "annotate", "mha2nnunet", "all"]
+            }
+        }
+    },
+    "additionalProperties": False
+}

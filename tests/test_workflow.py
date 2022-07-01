@@ -63,8 +63,8 @@ def test_dcm2mha(inputs):
 
 def test_upload(inputs):
     dm, archive_dir, gc = inputs
-    prep.upload.upload_data(dm.mha, gc)
-    prep.upload.delete_all_data(gc)
+    # prep.upload.upload_data(dm.mha, gc)
+    # prep.upload.delete_all_data(gc)
 
 
 def test_annotations(inputs):
@@ -97,4 +97,4 @@ def test_mha2nnunet(inputs):
 def test_prepare():
     with open('tests/input/workflow.json') as j:
         workflow = json.load(j)
-    prep.workflow.workflow(base=Path('.').absolute(), **workflow)
+    prep.workflow.workflow(**workflow)

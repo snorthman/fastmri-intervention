@@ -1,8 +1,7 @@
-import os, time
+import os, time, logging, httpx
 from pathlib import Path
 
-import logging
-import httpx
+import click
 from tqdm import tqdm
 
 from prep.utils import GCAPI
@@ -19,7 +18,8 @@ def upload_data(input: Path, gc: GCAPI, test: bool = False):
         files = [files[0]]
 
     total = len(files)
-    logging.info("Found", total, "images (cases) for upload")
+    logging.info(f"Found {total} images (cases) for upload")
+    # click.confirm('Confirm to start uploading {total} items', abort=True)
 
     pks = {}
     for order, file in tqdm(enumerate(files, 1), total=total):
@@ -32,14 +32,14 @@ def upload_data(input: Path, gc: GCAPI, test: bool = False):
         pks[display_set_pk] = {
             "order": order
         }
-        logging.info(str(pks[display_set_pk]))
+        logging.info(f'{display_set_pk}: {file.name} ({order})')
         if order % 100 == 0:
             time.sleep(60)
 
     logging.info("Upload complete ...")
     time.sleep(60)
 
-    logging.info("Ordering", total, "display sets")
+    logging.info(f"Ordering {total} display sets")
     for pk in tqdm(pks.keys(), total=total):
         gc.client.reader_studies.display_sets.partial_update(pk, **pks[pk])
 
