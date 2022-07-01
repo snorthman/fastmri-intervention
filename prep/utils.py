@@ -65,6 +65,14 @@ class GCAPI:
 
         logging.info('Connected to GC.')
 
+    def image(self, display_set):
+        ds = self.display_sets[display_set]
+        img = None
+        for d in ds['values']:
+            if d['interface']['slug'] == 'generic-medical-image':
+                img = d['image']
+        return self.cases[img]['name']
+
     @property
     def questions(self):
         return self._questions

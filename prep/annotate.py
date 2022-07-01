@@ -112,29 +112,28 @@ def _get_answers(mha_dir: Path, gc: GCAPI) -> List[Answer]:
         else:
             answers[display_set] = (a := Answer())
 
-        if not (question := raw_questions.get(ra['question'])):
-            click.echo(f'unknown question: {ra["question"]}')
+        try:
+            if not (question := raw_questions.get(ra['question'])):
+                click.echo(f'unknown question: {ra["question"]}')
+                continue
+            question = question['question_text']
+            if question == 'No needle':
+                a.no_needle = ra['answer']
+            elif question == 'Casing':
+                a.base = list_to_annotation(ra['answer']['point'])
+            elif question == 'Needle':
+                a.needle = list_to_annotation(ra['answer']['point'])
+            elif question == 'Tip':
+                a.tip = list_to_annotation(ra['answer']['point'])
+        except Exception as e:
+            a.error = str(e)
             continue
-        question = question['question_text']
-        if question == 'No needle':
-            a.no_needle = ra['answer']
-        elif question == 'Casing':
-            a.base = list_to_annotation(ra['answer']['point'])
-        elif question == 'Needle':
-            a.needle = list_to_annotation(ra['answer']['point'])
-        elif question == 'Tip':
-            a.tip = list_to_annotation(ra['answer']['point'])
 
         try:
-            ds = display_sets[display_set]
-            img = None
-            for d in ds['values']:
-                if d['interface']['slug'] == 'generic-medical-image':
-                    img = d['image']
-            a.name = cases[img]['name']
+            a.name = gc.image(display_set)
             a.mha = mha[a.name]
         except Exception as e:
-            a.error = FileNotFoundError(str(e))
+            a.error = str(e)
             continue
 
     return [a for a in answers.values()]
@@ -200,14 +199,14 @@ def write_annotations(mha_dir: Path, out_dir: Path, gc: GCAPI, base_needle: int 
             answer.error = e
             return False
 
-    click.echo(f'\ncreating annotations in\n\t{out_dir}\nusing\n\t{mha_dir}\nand\n\t{gc.slug} answers')
+    click.echo(f'\nCreating annotations in\n\t{out_dir}\nusing\n\t{mha_dir}\nand answers from\n\t{gc.slug}')
 
     answers = _get_answers(mha_dir, gc)
 
-    click.echo(f'downloaded {len(answers)} answers from grand challenge')
+    click.echo(f'Downloaded {len(answers)} case answers from Grand Challenge')
 
     successes, errors = 0, 0
-    with ThreadPoolExecutor(max_workers=min(32, (os.cpu_count() or 1) + 4), initializer=initializer_worker) as pool:
+    with ThreadPoolExecutor(max_workers=min(8, (os.cpu_count() or 1) + 4), initializer=initializer_worker) as pool:
         futures = {pool.submit(_write_annotation, a): a for a in answers}
         for future in tqdm(as_completed(futures), total=len(answers)):
             try:
@@ -216,7 +215,7 @@ def write_annotations(mha_dir: Path, out_dir: Path, gc: GCAPI, base_needle: int 
                 click.echo(f'Unexpected error: {e}')
                 errors += 1
     skips = len(answers) - successes - errors
-    click.echo(f'wrote {successes} annotations, with {skips} skipped and {errors} failed')
+    click.echo(f'Wrote {successes} annotations, with {skips} skipped and {errors} failed')
 
     with open(out_dir / f'{datetime.now().strftime("%Y%m%d%H%M%S")}.log', 'w') as f:
         f.writelines([f'{a.error}\n' for a in answers if not a.is_valid()])

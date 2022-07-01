@@ -15,14 +15,16 @@ def remake_dir(dir: Path) -> Path:
 
 
 def assert_dir(dir: Path, contents):
-    assert [d for d in os.listdir(dir) if not d.endswith('.log')] == contents
+    for d in os.listdir(dir):
+        if not d.endswith('.log'):
+            assert d in contents
 
 
 @pytest.fixture(scope="module")
 def inputs():
     dm = DirectoryManager(Path('tests'), Path('output'))
     archive_dir = Path('tests/input/10880')
-    slug = 'needle-segmentation-for-interventional-radiology-2'
+    slug = 'needle-segmentation-for-interventional-radiology'
     dm.output.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -72,9 +74,8 @@ def test_annotations(inputs):
     prep.annotate.write_annotations(dm.mha, remake_dir(dm.annotations), gc)
 
     # specific to 10880
-    # assert_dir(dm.annotations, ['10880_182386710290888504267667945338785981449_trufi.nii.gz',
-    #                                               '10880_230637160173546023230130340285289177320_trufi.nii.gz',
-    #                                               '10880_244375702689236279917785509476093985322_trufi.nii.gz'])
+    assert_dir(dm.annotations, ['10880_244375702689236279917785509476093985322_needle_1.nii.gz',
+                                '10880_182386710290888504267667945338785981449_needle_5.nii.gz'])
 
 
 def test_mha2nnunet(inputs):
