@@ -15,7 +15,7 @@ setup(
         'numpy-quaternion~=2022.4',
         'tqdm~=4.64',
         'SimpleITK~=2.1',
-        'jsonschema~=4.6'
+        'jsonschema~=4.6',
         'gcapi~=0.7',
         'picai-prep @ git+https://github.com/snorthman/picai_prep.git',
         'click'

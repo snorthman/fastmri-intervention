@@ -200,7 +200,7 @@ def write_annotations(mha_dir: Path, out_dir: Path, gc: GCAPI, base_needle: int 
             answer.error = e
             return False
 
-    click.echo(f'\ncreating annotations in\n\t{out_dir}\nusing\n\t{mha_dir}')
+    click.echo(f'\ncreating annotations in\n\t{out_dir}\nusing\n\t{mha_dir}\nand\n\t{gc.slug} answers')
 
     answers = _get_answers(mha_dir, gc)
 

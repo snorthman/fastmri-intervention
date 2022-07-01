@@ -82,7 +82,7 @@ class GCAPI:
     def display_sets(self):
         if self._display_sets is None:
             def gen():
-                yield 'raw_answers', list(self._gen_display_sets)
+                yield 'display_sets', list(self._gen_display_sets)
             get = {name: {v['api_url']: v for v in y} for name, y in gen()}
             self._display_sets = get['display_sets']
         return self._display_sets
