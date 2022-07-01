@@ -75,6 +75,7 @@ def test_annotations(inputs):
 def test_mha2nnunet(inputs):
     dm, _, _ = inputs
 
+    remake_dir(dm.nnunet)
     j = prep.convert.generate_mha2nnunet_json(dm)
     prep.convert.mha2nnunet(dm, 'fastmri_intervention', 500, j=j)
 
@@ -83,10 +84,10 @@ def test_mha2nnunet(inputs):
     assert_dir(dm.output, 'mha2nnunet_settings.json', taskdirname)
     assert_dir(dm.nnunet, taskdirname)
     assert_dir(dm.nnunet / taskdirname, 'dataset.json', 'imagesTr', 'labelsTr')
-    assert_dir(dm.nnunet / f'{taskdirname}/imagesTr', '10880_182386710290888504267667945338785981449_0000.nii.gz',
-                                                      '10880_244375702689236279917785509476093985322_0000.nii.gz')
-    assert_dir(dm.nnunet / f'{taskdirname}/labelsTr', '10880_182386710290888504267667945338785981449.nii.gz',
-                                                      '10880_244375702689236279917785509476093985322.nii.gz')
+    assert_dir(dm.nnunet / f'{taskdirname}/imagesTr', '10880_182386710290888504267667945338785981449_5_0000.nii.gz',
+                                                      '10880_244375702689236279917785509476093985322_1_0000.nii.gz')
+    assert_dir(dm.nnunet / f'{taskdirname}/labelsTr', '10880_182386710290888504267667945338785981449_5.nii.gz',
+                                                      '10880_244375702689236279917785509476093985322_1.nii.gz')
 
 
 def test_prepare():

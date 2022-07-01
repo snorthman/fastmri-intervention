@@ -68,10 +68,11 @@ def generate_mha2nnunet_json(dm: DirectoryManager) -> Path:
         patient_id = dirpath.parts[-1]
         mha = (dm.mha / patient_id / filename)
         annotation = (dm.annotations / filename).with_suffix('.nii.gz')
+        fn = filename.split(sep='_')
         if mha.exists() and annotation.exists():
             return {
                 "patient_id": patient_id,
-                "study_id": filename.split(sep='_')[1],
+                "study_id": f'{fn[1]}_{fn[-1]}'[:-4],
                 "scan_paths": [mha.relative_to(dm.mha).as_posix()],
                 "annotation_path": annotation.relative_to(dm.annotations).as_posix()
             }
