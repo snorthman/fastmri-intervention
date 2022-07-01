@@ -85,10 +85,10 @@ def step_mha2nnunet(dm: DirectoryManager, name: str, id: int):
     settings = Path(dm.output / 'mha2nnunet_settings.json')
     if not settings.exists():
         logging.info(f'No mha2nnunet_settings.json found, generating...')
-        generate_mha2nnunet_json(dm.mha, dm.output, dm.output)
+        generate_mha2nnunet_json(dm)
 
     logging.info(f'Converting mha @ {dm.mha} to nnunet structure @ {dm.nnunet}...')
-    mha2nnunet(name, id, dm.mha, dm.annotations, dm.nnunet)
+    mha2nnunet(dm, name, id)
 
 
 def step_dockerfile(dm: DirectoryManager, name: str, id: int, version: int):

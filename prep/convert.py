@@ -1,10 +1,12 @@
 import os, json, concurrent.futures
 from pathlib import Path
-from typing import Callable, Dict, Tuple
+from typing import Callable, Dict
 
 import click, picai_prep
 from tqdm import tqdm
 from box import Box
+
+from prep.utils import DirectoryManager
 
 
 def _walk_archive(in_dir: Path, endswith: str, add_func: Callable[[Path, str], Dict]) -> set:
@@ -15,7 +17,7 @@ def _walk_archive(in_dir: Path, endswith: str, add_func: Callable[[Path, str], D
     return archive
 
 
-def generate_dcm2mha_json(in_dir: Path, out_dir: Path) -> Path:
+def generate_dcm2mha_json(dm: DirectoryManager, archive_dir: Path) -> Path:
     def walk_dcm_archive(in_dir: Path) -> set:
         return _walk_archive(in_dir, endswith='.dcm',
                       add_func=lambda dp, _: {
@@ -24,8 +26,8 @@ def generate_dcm2mha_json(in_dir: Path, out_dir: Path) -> Path:
                           "path": dp.as_posix()
                       })
 
-    click.echo(f"Gathering DICOMs from {in_dir} and its subdirectories")
-    dirs = [d.absolute() for d in in_dir.iterdir()]
+    click.echo(f"Gathering DICOMs from {archive_dir} and its subdirectories")
+    dirs = [d.absolute() for d in archive_dir.iterdir()]
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         archives = list(tqdm(executor.map(walk_dcm_archive, dirs), total=len(dirs)))
@@ -37,7 +39,7 @@ def generate_dcm2mha_json(in_dir: Path, out_dir: Path) -> Path:
     mappings = {'needle': {'SeriesDescription': ['naald', 'nld']}}
     options = {'random_seed': 0, 'allow_duplicates': True}
 
-    j = out_dir / 'dcm2mha_settings.json'
+    j = dm.output / 'dcm2mha_settings.json'
     with open(j, 'w') as f:
         json.dump({"options": options,
                    "mappings": mappings,
@@ -46,29 +48,29 @@ def generate_dcm2mha_json(in_dir: Path, out_dir: Path) -> Path:
     return j
 
 
-def dcm2mha(dcm_dir: Path, out_dir: Path, j: Path = None):
+def dcm2mha(dm: DirectoryManager, archive_dir: Path, j: Path = None):
     if not j or not j.exists():
-        j = generate_dcm2mha_json(dcm_dir, out_dir)
+        j = generate_dcm2mha_json(dm, archive_dir)
 
     picai_prep.Dicom2MHAConverter(
-        input_dir=dcm_dir.as_posix(),
-        output_dir=out_dir.as_posix(),
+        input_dir=archive_dir.as_posix(),
+        output_dir=dm.mha.as_posix(),
         dcm2mha_settings=j.as_posix(),
     ).convert()
 
 
-def generate_mha2nnunet_json(mha_dir: Path, annotations_dir: Path, out_dir: Path) -> Path:
+def generate_mha2nnunet_json(dm: DirectoryManager) -> Path:
     def walk_mha_archive(in_dir: Path) -> set:
         return _walk_archive(in_dir, endswith='.mha',
                       add_func=lambda dp, fn: {
                         "patient_id": dp.parts[-1],
                         "study_id": fn.split(sep='_')[1],
-                        "scan_paths": [(dp / fn).relative_to(mha_dir).as_posix()],
-                        "annotation_path": Path(dp / fn).with_suffix('.nii.gz').as_posix()
+                        "scan_paths": [(dp / fn).relative_to(dm.output).as_posix()],
+                        "annotation_path": Path(dp / fn).relative_to(dm.output).with_suffix('.nii.gz').as_posix()
                     })
 
-    click.echo(f"Gathering MHAs from {mha_dir} and its subdirectories")
-    dirs = list(mha_dir.iterdir())
+    click.echo(f"Gathering MHAs from {dm.mha} and its subdirectories")
+    dirs = list(dm.mha.iterdir())
     with concurrent.futures.ThreadPoolExecutor() as executor:
         archives = list(tqdm(executor.map(walk_mha_archive, dirs), total=len(dirs)))
 
@@ -105,7 +107,7 @@ def generate_mha2nnunet_json(mha_dir: Path, annotations_dir: Path, out_dir: Path
         ]
     }
 
-    j = out_dir / 'mha2nnunet_settings.json'
+    j = dm.output / 'mha2nnunet_settings.json'
     with open(j, 'w') as f:
         json.dump({"dataset_json": dataset_json,
                    "preprocessing": preprocessing,
@@ -114,12 +116,12 @@ def generate_mha2nnunet_json(mha_dir: Path, annotations_dir: Path, out_dir: Path
     return j
 
 
-def mha2nnunet(name: str, id: int, mha_dir: Path, annotations_dir: Path, out_dir: Path, j: Path = None):
+def mha2nnunet(dm: DirectoryManager, name: str, id: int, j: Path = None):
     if not 500 <= id < 1000:
         raise ValueError("id must be between 500 and 999")
 
     if not j or not j.exists():
-        j = generate_mha2nnunet_json(mha_dir, annotations_dir, out_dir)
+        j = generate_mha2nnunet_json(dm)
 
     with open(j, 'r') as f:
         settings = json.load(f)
@@ -128,8 +130,8 @@ def mha2nnunet(name: str, id: int, mha_dir: Path, annotations_dir: Path, out_dir
         json.dump(settings, f)
 
     picai_prep.MHA2nnUNetConverter(
-        input_path=mha_dir.as_posix(),
-        annotations_path=annotations_dir.as_posix(),
-        output_path=out_dir.as_posix(),
+        input_path=dm.mha.as_posix(),
+        annotations_path=dm.annotations.as_posix(),
+        output_path=dm.output.as_posix(),
         settings_path=j.as_posix()
     ).convert()
