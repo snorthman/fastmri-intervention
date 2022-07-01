@@ -52,10 +52,10 @@ def step_dcm2mha(dm: DirectoryManager, archive_dir: Path):
     settings = Path(dm.output / 'dcm2mha_settings.json')
     if not settings.exists():
         logging.info(f'No dcm2mha_settings.json found, generating...')
-        generate_dcm2mha_json(archive_dir, dm.output)
+        generate_dcm2mha_json(dm, archive_dir)
 
     logging.info(f'Converting raw archive @ {archive_dir} to mha files @ {dm.mha}')
-    dcm2mha(archive_dir, dm.mha, settings)
+    dcm2mha(dm, archive_dir, settings)
 
 
 def step_upload(dm: DirectoryManager, gc: GCAPI):
@@ -75,7 +75,7 @@ def step_annotations(dm: DirectoryManager, gc: GCAPI):
     logging.info("STEP_ANNOTATIONS")
     create_timestamp(dm.annotations)
 
-    write_annotations(dm.mha, dm.annotations, gc)
+    write_annotations(dm, gc)
 
 
 def step_mha2nnunet(dm: DirectoryManager, name: str, id: int):

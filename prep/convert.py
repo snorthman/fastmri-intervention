@@ -13,7 +13,9 @@ def _walk_archive(in_dir: Path, endswith: str, add_func: Callable[[Path, str], D
     archive = set()
     for dirpath, dirnames, filenames in os.walk(in_dir):
         for fn in [f for f in filenames if f.endswith(endswith)]:
-            archive.add(Box(add_func(Path(dirpath), fn), frozen_box=True))
+            obj = add_func(Path(dirpath), fn)
+            if obj:
+                archive.add(Box(obj, frozen_box=True))
     return archive
 
 
@@ -64,12 +66,15 @@ def dcm2mha(dm: DirectoryManager, archive_dir: Path, j: Path = None):
 def generate_mha2nnunet_json(dm: DirectoryManager) -> Path:
     def walk_mha_archive_add_func(dirpath: Path, filename: str):
         patient_id = dirpath.parts[-1]
-        return {
-            "patient_id": patient_id,
-            "study_id": filename.split(sep='_')[1],
-            "scan_paths": [(dm.mha / patient_id / filename).as_posix],
-            "annotation_path": (dm.annotations / patient_id / filename).with_suffix('.nii.gz').as_posix()
-        }
+        mha = (dm.mha / patient_id / filename)
+        annotation = (dm.annotations / filename).with_suffix('.nii.gz')
+        if mha.exists() and annotation.exists():
+            return {
+                "patient_id": patient_id,
+                "study_id": filename.split(sep='_')[1],
+                "scan_paths": [mha.relative_to(dm.mha).as_posix()],
+                "annotation_path": annotation.relative_to(dm.annotations).as_posix()
+            }
 
     def walk_mha_archive(in_dir: Path) -> set:
         return _walk_archive(in_dir, endswith='.mha', add_func=walk_mha_archive_add_func)
@@ -137,6 +142,6 @@ def mha2nnunet(dm: DirectoryManager, name: str, id: int, j: Path = None):
     picai_prep.MHA2nnUNetConverter(
         input_path=dm.mha.as_posix(),
         annotations_path=dm.annotations.as_posix(),
-        output_path=dm.output.as_posix(),
+        output_path=dm.nnunet.as_posix(),
         settings_path=j.as_posix()
     ).convert()

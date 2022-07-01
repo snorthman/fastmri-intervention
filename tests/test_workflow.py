@@ -14,10 +14,10 @@ def remake_dir(dir: Path) -> Path:
     return dir
 
 
-def assert_dir(dir: Path, contents):
-    for d in os.listdir(dir):
-        if not d.endswith('.log'):
-            assert d in contents
+def assert_dir(dir: Path, *contents):
+    A = os.listdir(dir)
+    for b in contents:
+        assert b in A
 
 
 @pytest.fixture(scope="module")
@@ -40,27 +40,19 @@ def inputs():
 def test_dcm2mha(inputs):
     dm, archive_dir, _ = inputs
 
-    prep.convert.dcm2mha(archive_dir, remake_dir(dm.mha))
+    remake_dir(dm.mha)
+    j = prep.convert.generate_dcm2mha_json(dm, archive_dir)
+    prep.convert.dcm2mha(dm, archive_dir, j=j)
 
     # specific to 10880
-    assert_dir(dm.mha / '10880', ['10880_182386710290888504267667945338785981449_needle_0.mha',
-                                  '10880_182386710290888504267667945338785981449_needle_1.mha',
-                                  '10880_182386710290888504267667945338785981449_needle_2.mha',
-                                  '10880_182386710290888504267667945338785981449_needle_3.mha',
-                                  '10880_182386710290888504267667945338785981449_needle_4.mha',
-                                  '10880_182386710290888504267667945338785981449_needle_5.mha',
-                                  '10880_230637160173546023230130340285289177320_needle_0.mha',
-                                  '10880_230637160173546023230130340285289177320_needle_1.mha',
-                                  '10880_230637160173546023230130340285289177320_needle_2.mha',
-                                  '10880_230637160173546023230130340285289177320_needle_3.mha',
-                                  '10880_230637160173546023230130340285289177320_needle_4.mha',
-                                  '10880_230637160173546023230130340285289177320_needle_5.mha',
-                                  '10880_230637160173546023230130340285289177320_needle_6.mha',
-                                  '10880_230637160173546023230130340285289177320_needle_7.mha',
-                                  '10880_244375702689236279917785509476093985322_needle_0.mha',
-                                  '10880_244375702689236279917785509476093985322_needle_1.mha',
-                                  '10880_244375702689236279917785509476093985322_needle_2.mha',
-                                  '10880_244375702689236279917785509476093985322_needle_3.mha'])
+    assert_dir(dm.mha / '10880', '10880_182386710290888504267667945338785981449_needle_0.mha',
+               '10880_182386710290888504267667945338785981449_needle_1.mha',
+               '10880_182386710290888504267667945338785981449_needle_2.mha',
+               '10880_182386710290888504267667945338785981449_needle_3.mha',
+               '10880_244375702689236279917785509476093985322_needle_0.mha',
+               '10880_244375702689236279917785509476093985322_needle_1.mha',
+               '10880_244375702689236279917785509476093985322_needle_2.mha',
+               '10880_244375702689236279917785509476093985322_needle_3.mha')
 
 
 def test_upload(inputs):
@@ -71,28 +63,30 @@ def test_upload(inputs):
 
 def test_annotations(inputs):
     dm, _, gc = inputs
-    prep.annotate.write_annotations(dm.mha, remake_dir(dm.annotations), gc)
+
+    remake_dir(dm.annotations)
+    prep.annotate.write_annotations(dm, gc)
 
     # specific to 10880
-    assert_dir(dm.annotations, ['10880_244375702689236279917785509476093985322_needle_1.nii.gz',
-                                '10880_182386710290888504267667945338785981449_needle_5.nii.gz'])
+    assert_dir(dm.annotations, '10880_244375702689236279917785509476093985322_needle_1.nii.gz',
+                               '10880_182386710290888504267667945338785981449_needle_5.nii.gz')
 
 
 def test_mha2nnunet(inputs):
     dm, _, _ = inputs
 
-    prep.convert.mha2nnunet('fastmri_intervention', 500, dm.mha, dm.annotations, remake_dir(dm.nnunet))
+    j = prep.convert.generate_mha2nnunet_json(dm)
+    prep.convert.mha2nnunet(dm, 'fastmri_intervention', 500, j=j)
 
     # specific to 10880
-    # assert_dir(dm.nnunet, ['mha2nnunet_settings.json', 'Task500_fastmri_intervention'])
-    # assert_dir(dm.nnunet, ['mha2nnunet_settings.json', 'Task500_fastmri_intervention'])
-    # assert_dir(dm.nnunet / 'Task500_fastmri_intervention', ['dataset.json', 'imagesTr', 'labelsTr'])
-    # assert_dir(dm.nnunet / 'Task500_fastmri_intervention/imagesTr', ['10880_182386710290888504267667945338785981449_0000.nii.gz',
-    #                                                                                '10880_230637160173546023230130340285289177320_0000.nii.gz',
-    #                                                                                '10880_244375702689236279917785509476093985322_0000.nii.gz'])
-    # assert_dir(dm.nnunet / 'Task500_fastmri_intervention/labelsTr', ['10880_182386710290888504267667945338785981449.nii.gz',
-    #                                                                                '10880_230637160173546023230130340285289177320.nii.gz',
-    #                                                                                '10880_244375702689236279917785509476093985322.nii.gz'])
+    taskdirname = 'Task500_fastmri_intervention'
+    assert_dir(dm.output, 'mha2nnunet_settings.json', taskdirname)
+    assert_dir(dm.nnunet, taskdirname)
+    assert_dir(dm.nnunet / taskdirname, 'dataset.json', 'imagesTr', 'labelsTr')
+    assert_dir(dm.nnunet / f'{taskdirname}/imagesTr', '10880_182386710290888504267667945338785981449_0000.nii.gz',
+                                                      '10880_244375702689236279917785509476093985322_0000.nii.gz')
+    assert_dir(dm.nnunet / f'{taskdirname}/labelsTr', '10880_182386710290888504267667945338785981449.nii.gz',
+                                                      '10880_244375702689236279917785509476093985322.nii.gz')
 
 
 def test_prepare():
