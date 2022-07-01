@@ -18,13 +18,15 @@ def _walk_archive(in_dir: Path, endswith: str, add_func: Callable[[Path, str], D
 
 
 def generate_dcm2mha_json(dm: DirectoryManager, archive_dir: Path) -> Path:
+    def walk_dcm_archive_add_func(dirpath: Path, _: str):
+        return {
+            "patient_id": dirpath.parts[-3],
+            "study_id": dirpath.parts[-2].split(sep='.')[-1],
+            "path": dirpath.as_posix()
+        }
+
     def walk_dcm_archive(in_dir: Path) -> set:
-        return _walk_archive(in_dir, endswith='.dcm',
-                      add_func=lambda dp, _: {
-                          "patient_id": dp.parts[-3],
-                          "study_id": dp.parts[-2].split(sep='.')[-1],
-                          "path": dp.as_posix()
-                      })
+        return _walk_archive(in_dir, endswith='.dcm', add_func=walk_dcm_archive_add_func)
 
     click.echo(f"Gathering DICOMs from {archive_dir} and its subdirectories")
     dirs = [d.absolute() for d in archive_dir.iterdir()]
@@ -60,14 +62,17 @@ def dcm2mha(dm: DirectoryManager, archive_dir: Path, j: Path = None):
 
 
 def generate_mha2nnunet_json(dm: DirectoryManager) -> Path:
+    def walk_mha_archive_add_func(dirpath: Path, filename: str):
+        patient_id = dirpath.parts[-1]
+        return {
+            "patient_id": patient_id,
+            "study_id": filename.split(sep='_')[1],
+            "scan_paths": [(dm.mha / patient_id / filename).as_posix],
+            "annotation_path": (dm.annotations / patient_id / filename).with_suffix('.nii.gz').as_posix()
+        }
+
     def walk_mha_archive(in_dir: Path) -> set:
-        return _walk_archive(in_dir, endswith='.mha',
-                      add_func=lambda dp, fn: {
-                        "patient_id": dp.parts[-1],
-                        "study_id": fn.split(sep='_')[1],
-                        "scan_paths": [(dp / fn).relative_to(dm.output).as_posix()],
-                        "annotation_path": Path(dp / fn).relative_to(dm.output).with_suffix('.nii.gz').as_posix()
-                    })
+        return _walk_archive(in_dir, endswith='.mha', add_func=walk_mha_archive_add_func)
 
     click.echo(f"Gathering MHAs from {dm.mha} and its subdirectories")
     dirs = list(dm.mha.iterdir())
