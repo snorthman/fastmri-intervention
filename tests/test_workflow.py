@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-import prep.convert, prep.annotate, prep.workflow, prep.upload
+import prep.convert, prep.annotate, prep.workflow, prep.upload, prep.docker
 from prep.utils import DirectoryManager, GCAPI
 
 
@@ -88,6 +88,12 @@ def test_mha2nnunet(inputs):
                                                       '10880_244375702689236279917785509476093985322_1_0000.nii.gz')
     assert_dir(dm.nnunet / f'{taskdirname}/labelsTr', '10880_182386710290888504267667945338785981449_5.nii.gz',
                                                       '10880_244375702689236279917785509476093985322_1.nii.gz')
+
+
+def test_dockerfile(inputs):
+    dm, _, _ = inputs
+    df = prep.docker.Dockerfile(dm, 'fastmri_intervention', 500)
+
 
 
 def test_prepare():

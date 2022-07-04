@@ -146,7 +146,7 @@ workflow_schema = {
             "type": "array",
             "contains": {
                 "type": "string",
-                "enum": ["dcm2mha", "upload", "annotate", "mha2nnunet", "all"]
+                "enum": ["dcm2mha", "upload", "annotate", "mha2nnunet", "docker", "all"]
             }
         }
     },

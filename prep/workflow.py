@@ -7,13 +7,13 @@ import click, jsonschema
 from prep.convert import dcm2mha, generate_dcm2mha_json, mha2nnunet, generate_mha2nnunet_json
 from prep.upload import upload_data, delete_all_data
 from prep.annotate import write_annotations
-from prep.dockerfile import Dockerfile
+from prep.docker import Dockerfile
 from prep.utils import now, DirectoryManager, GCAPI, workflow_schema
 
 
 def create_timestamp(path: Path):
     path.mkdir(parents=True, exist_ok=True)
-    with open(path / '.timestamp', 'w') as f:
+    with open(path / '.timestamp', 'x') as f:
         f.write(now())
 
 
@@ -93,10 +93,10 @@ def step_mha2nnunet(dm: DirectoryManager, name: str, id: int):
 
 def step_dockerfile(dm: DirectoryManager, name: str, id: int, version: int):
     logging.info('STEP_DOCKERFILE')
-    dockerfile = Dockerfile(dm, name, id, version=version)
-    with open(dm.output / 'docker_build_and_push.sh', 'w') as sh:
-        sh.write(dockerfile.commands())
-    logging.info(f'Build and push image using\n\n{dockerfile.commands()}')
+    # dockerfile = Dockerfile(dm, name, id, version=version)
+    # with open(dm.output / 'docker_build_and_push.sh', 'w') as sh:
+    #     sh.write(dockerfile.commands())
+    # logging.info(f'Build and push image using\n\n{dockerfile.commands()}')
 
 
 def workflow(**kwargs):
@@ -122,7 +122,7 @@ def workflow(**kwargs):
                  ('upload', lambda: step_upload(dm, gc)),
                  ('annotate', lambda: step_annotations(dm, gc)),
                  ('mha2nnunet', lambda: step_mha2nnunet(dm, task_name, task_id)),
-                 ('mha2nnunet', lambda: step_dockerfile(dm, task_name, task_id, kwargs['docker_version']))]:
+                 ('docker', lambda: step_dockerfile(dm, task_name, task_id, kwargs['docker_version']))]:
         if id in steps or 'all' in steps:
             funcs.append(step)
 
