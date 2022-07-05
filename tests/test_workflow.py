@@ -1,6 +1,7 @@
 import shutil, os, json
 from pathlib import Path
 
+import docker
 import pytest
 
 import prep.convert, prep.annotate, prep.workflow, prep.upload, prep.docker
@@ -93,6 +94,7 @@ def test_mha2nnunet(inputs):
 def test_dockerfile(inputs):
     dm, _, _ = inputs
     df = prep.docker.Dockerfile(dm, 'fastmri_intervention', 500)
+    df.build(os.getcwd())
 
 
 

@@ -1,27 +1,35 @@
 from pathlib import Path
 
 import docker
+from tqdm import tqdm
 
 from prep.utils import DirectoryManager
 
 
 class Dockerfile:
     def __init__(self, dm: DirectoryManager, task_name: str, task_id: int, version: int = 1):
+        self._client = docker.client.from_env()
+
         self._dm = dm
         self.task_name = task_name
         self.task_id = task_id
         self.version = version
         self.tag = f'doduo1.umcn.nl/stan/{task_name}:{version}'
 
-    def output(self, base: str = None) -> str:
-        dm = self._dm.from_base(Path(base)) if base else self._dm
+    def build(self, base: str = None):
+        with open(self._dm.output / 'Dockerfile', 'w') as d:
+            # d.write(self.output(base))
+            d.write('FROM python:3.10-slim-bullseye\n')
+        image, _ = self._client.images.build(path=self._dm.output.as_posix(), tag='mytag')
+        i=1
+
+
+    def output(self, base: str) -> str:
+        dm = self._dm.from_base(Path(base))
         train_commands = '\n'.join([f'RUN nnUNet_train 3d_fullres {self.task_id} {i} --npz' for i in range(5)])
 
-        return f"""FROM python:3.10-slim-bullseye
-            
-USER user
-            
-RUN pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu113
+        return f"""FROM nvcr.io/nvidia/pytorch:20.12-py3
+        
 RUN pip install nnunet
 RUN pip install --upgrade git+https://github.com/FabianIsensee/hiddenlayer.git@more_plotted_details#egg=hiddenlayer
 
@@ -33,7 +41,7 @@ RUN nnUNet_plan_and_preprocess -t {self.task_id} --verify_dataset_integrity
 {train_commands}
 RUN nnUNet_find_best_configuration -m 3d_fullres -t {self.task_id}"""
 
-    def commands(self) -> str:
-        return f"""docker build {self.path.parent.absolute().as_posix()} -t {self.tag}
-docker push {self.tag}"""
+#     def commands(self) -> str:
+#         return f"""docker build {self.path.parent.absolute().as_posix()} -t {self.tag}
+# docker push {self.tag}"""
 

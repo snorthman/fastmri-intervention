@@ -1,5 +1,5 @@
 import shutil, httpx, logging
-from pathlib import Path
+from pathlib import Path, PurePath
 from datetime import datetime
 
 import gcapi
@@ -28,7 +28,7 @@ class DirectoryManager:
         :param output_dir: Output directory to store all output in (base / output_dir)
         """
         self._output_dir = Path(output_dir)
-        self.output = base / self._output_dir
+        self.output = Path(base / self._output_dir)
         self.mha = self.output / 'mha'
         self.upload = self.output / 'upload'
         self.annotations = self.output / 'annotations'
