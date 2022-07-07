@@ -17,7 +17,7 @@ def now() -> str:
 
 
 def nnunet_dirs(base_dir: Path):
-    return base_dir / 'nnunet', base_dir / 'nnunet_preprocessed', base_dir / f'nnunet_results_{now()}'
+    return base_dir / 'nnUNet_raw_data', base_dir / 'nnunet_preprocessed', base_dir / f'nnunet_results_{now()}'
 
 
 class DirectoryManager:
@@ -33,11 +33,6 @@ class DirectoryManager:
         self.upload = self.output / 'upload'
         self.annotations = self.output / 'annotations'
         self.nnunet = self.output / 'nnunet'
-        self.nnunet_preprocessed = self.output / 'nnunet_preprocessed'
-
-    @property
-    def nnunet_results(self):
-        return self.output / f'nnunet_results_{now()}'
 
     def from_base(self, base: Path) -> 'DirectoryManager':
         return DirectoryManager(base, self._output_dir)
@@ -137,18 +132,15 @@ workflow_schema = {
             "minimum": 500,
             "maximum": 999
         },
-        "docker_version": {
-            "type": "integer",
-            "minimum": 1
-        },
         "run": {
             "description": "select tasks to run, order is non-configurable",
             "type": "array",
             "contains": {
                 "type": "string",
-                "enum": ["dcm2mha", "upload", "annotate", "mha2nnunet", "docker", "all"]
+                "enum": ["dcm2mha", "upload", "annotate", "mha2nnunet", "all"]
             }
         }
     },
+    "required": ["out_dir", "archive_dir", "gc_slug", "gc_api", "task_name", "task_id", "run"],
     "additionalProperties": False
 }

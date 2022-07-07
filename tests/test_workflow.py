@@ -1,10 +1,9 @@
 import shutil, os, json
 from pathlib import Path
 
-import docker
 import pytest
 
-import prep.convert, prep.annotate, prep.workflow, prep.upload, prep.docker
+import prep.convert, prep.annotate, prep.workflow, prep.upload
 from prep.utils import DirectoryManager, GCAPI
 
 
@@ -42,8 +41,8 @@ def test_dcm2mha(inputs):
     dm, archive_dir, _ = inputs
 
     remake_dir(dm.mha)
-    j = prep.convert.generate_dcm2mha_json(dm, archive_dir)
-    prep.convert.dcm2mha(dm, archive_dir, j=j)
+    archive_json = prep.convert.generate_dcm2mha_json(dm, archive_dir)
+    prep.convert.dcm2mha(dm, archive_dir, archive_json)
 
     # specific to 10880
     assert_dir(dm.mha / '10880', '10880_182386710290888504267667945338785981449_needle_0.mha',
@@ -54,12 +53,6 @@ def test_dcm2mha(inputs):
                '10880_244375702689236279917785509476093985322_needle_1.mha',
                '10880_244375702689236279917785509476093985322_needle_2.mha',
                '10880_244375702689236279917785509476093985322_needle_3.mha')
-
-
-def test_upload(inputs):
-    dm, archive_dir, gc = inputs
-    # prep.upload.upload_data(dm.mha, gc)
-    # prep.upload.delete_all_data(gc)
 
 
 def test_annotations(inputs):
@@ -77,8 +70,8 @@ def test_mha2nnunet(inputs):
     dm, _, _ = inputs
 
     remake_dir(dm.nnunet)
-    j = prep.convert.generate_mha2nnunet_json(dm)
-    prep.convert.mha2nnunet(dm, 'fastmri_intervention', 500, j=j)
+    train, test = prep.convert.generate_mha2nnunet_jsons(dm, 'fastmri_intervention', 500)
+    prep.convert.mha2nnunet(dm, train, test)
 
     # specific to 10880
     taskdirname = 'Task500_fastmri_intervention'
@@ -89,13 +82,6 @@ def test_mha2nnunet(inputs):
                                                       '10880_244375702689236279917785509476093985322_1_0000.nii.gz')
     assert_dir(dm.nnunet / f'{taskdirname}/labelsTr', '10880_182386710290888504267667945338785981449_5.nii.gz',
                                                       '10880_244375702689236279917785509476093985322_1.nii.gz')
-
-
-def test_dockerfile(inputs):
-    dm, _, _ = inputs
-    df = prep.docker.Dockerfile(dm, 'fastmri_intervention', 500)
-    df.build(os.getcwd())
-
 
 
 def test_prepare():

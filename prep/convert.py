@@ -1,10 +1,11 @@
 import os, json, concurrent.futures
 from pathlib import Path
-from typing import Callable, Dict
+from typing import Callable, Dict, Tuple
 
 import click, picai_prep
 from tqdm import tqdm
 from box import Box
+import numpy as np
 
 from prep.utils import DirectoryManager
 
@@ -41,7 +42,7 @@ def generate_dcm2mha_json(dm: DirectoryManager, archive_dir: Path) -> Path:
         archive.update(a)
 
     mappings = {'needle': {'SeriesDescription': ['naald', 'nld']}}
-    options = {'random_seed': 0, 'allow_duplicates': True}
+    options = {'allow_duplicates': True}
 
     j = dm.output / 'dcm2mha_settings.json'
     with open(j, 'w') as f:
@@ -52,18 +53,18 @@ def generate_dcm2mha_json(dm: DirectoryManager, archive_dir: Path) -> Path:
     return j
 
 
-def dcm2mha(dm: DirectoryManager, archive_dir: Path, j: Path = None):
-    if not j or not j.exists():
-        j = generate_dcm2mha_json(dm, archive_dir)
-
+def dcm2mha(dm: DirectoryManager, archive_dir: Path, archive_json: Path = None):
     picai_prep.Dicom2MHAConverter(
         input_dir=archive_dir.as_posix(),
         output_dir=dm.mha.as_posix(),
-        dcm2mha_settings=j.as_posix(),
+        dcm2mha_settings=archive_json.as_posix(),
     ).convert()
 
 
-def generate_mha2nnunet_json(dm: DirectoryManager) -> Path:
+def generate_mha2nnunet_jsons(dm: DirectoryManager, name: str, id: int) -> Tuple[Path, Path]:
+    if not 500 <= id < 1000:
+        raise ValueError("id must be between 500 and 999")
+
     def walk_mha_archive_add_func(dirpath: Path, filename: str):
         patient_id = dirpath.parts[-1]
         mha = (dm.mha / patient_id / filename)
@@ -88,6 +89,29 @@ def generate_mha2nnunet_json(dm: DirectoryManager) -> Path:
     archive = set()
     for a in archives:
         archive.update(a)
+    archive = list(archive)
+
+    buckets = {}
+    for i, item in enumerate(archive):
+        pid, sid = item.patient_id, item.study_id.split('_')[0]
+        buckets[pid] = buckets.get(pid, {})
+        buckets[pid][sid] = buckets[pid].get(sid, [])
+        buckets[pid][sid].append(i)
+
+    splits = [[] for _ in range(min(5 + 1, len(archive)))]
+    splits_n = len(splits)
+    rng = np.random.default_rng()
+    for pid in buckets.keys():
+        for sid in buckets[pid].keys():
+            # each item with same pid and sid in a bucket
+            items: list = buckets[pid][sid]
+            while len(items) > 0:
+                # select folds with the least items
+                splits_c = np.array([len(s) for s in splits])
+                S, = np.nonzero(splits_c == splits_c.min(initial=None))
+                rng.shuffle(S)
+                for s in S[:len(items)]:
+                    splits[s].append(archive[items.pop()])
 
     dataset_json = {
         "description": "",
@@ -95,6 +119,7 @@ def generate_mha2nnunet_json(dm: DirectoryManager) -> Path:
         "reference": "",
         "licence": "",
         "release": "0.3",
+        "task": f"Task{id}_{name}",
         "modality": {
             "0": "trufi"
         },
@@ -118,31 +143,51 @@ def generate_mha2nnunet_json(dm: DirectoryManager) -> Path:
         ]
     }
 
-    j = dm.output / 'mha2nnunet_settings.json'
-    with open(j, 'w') as f:
-        json.dump({"dataset_json": dataset_json,
-                   "preprocessing": preprocessing,
-                   "archive": list([a.to_dict() for a in archive])}, f, indent=4)
+    nnunet_split = []
+    for S in range(splits_n - 1):
+        train, val = [], []
+        for s, split in enumerate(splits[:splits_n - 1]):
+            group = train if s != S else val
+            for item in split:
+                group.append(f'{item.patient_id}_{item.study_id}')
+        nnunet_split.append({'train': train, 'val': val})
 
-    return j
+    with open(dm.output / 'nnunet_split.json', 'w') as f:
+        json.dump(nnunet_split, f, indent=4)
+
+    dump_settings = lambda A: {"dataset_json": dataset_json,
+                               "preprocessing": preprocessing,
+                               "archive": list([a.to_dict() for a in A])}
+
+    train = []
+    [train.extend(s) for s in splits[:splits_n - 1]]
+    with open(train_json := dm.output / f'mha2nnunet_train_settings.json', 'w') as f:
+        json.dump(dump_settings(train), f, indent=4)
+
+    test = []
+    test.extend(splits[-1])
+    with open(test_json := dm.output / f'mha2nnunet_test_settings.json', 'w') as f:
+        json.dump(dump_settings(test), f, indent=4)
+
+    return train_json, test_json
 
 
-def mha2nnunet(dm: DirectoryManager, name: str, id: int, j: Path = None):
-    if not 500 <= id < 1000:
-        raise ValueError("id must be between 500 and 999")
-
-    if not j or not j.exists():
-        j = generate_mha2nnunet_json(dm)
-
-    with open(j, 'r') as f:
-        settings = json.load(f)
-        settings['dataset_json']['task'] = f"Task{id}_{name}"
-    with open(j, 'w') as f:
-        json.dump(settings, f)
-
+def mha2nnunet(dm: DirectoryManager, train_json: Path, test_json: Path = None):
     picai_prep.MHA2nnUNetConverter(
         input_path=dm.mha.as_posix(),
         annotations_path=dm.annotations.as_posix(),
-        output_path=dm.nnunet.as_posix(),
-        settings_path=j.as_posix()
+        output_path=(dm.nnunet / 'train').as_posix(),
+        settings_path=train_json.as_posix()
     ).convert()
+
+    if test_json:
+        picai_prep.MHA2nnUNetConverter(
+            input_path=dm.mha.as_posix(),
+            annotations_path=dm.annotations.as_posix(),
+            output_path=(dm.nnunet / 'test').as_posix(),
+            settings_path=test_json.as_posix(),
+            out_dir_scans="imagesTs",
+            out_dir_annot="labelsTs"
+        ).convert()
+
+    # merge results, imagesTs to the train folder, delete folders and done
