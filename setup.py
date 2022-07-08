@@ -18,11 +18,12 @@ setup(
         'jsonschema~=4.6',
         'gcapi~=0.7',
         'picai-prep @ git+https://github.com/snorthman/picai_prep.git',
-        'click'
+        'click',
+        'torch~=1.12'
     ],
     entry_points={
         'console_scripts': [
-            'fastmri-intervention-prep = prep:cli',
+            'fastmri-intervention = prep:cli',
         ]
     }
 )

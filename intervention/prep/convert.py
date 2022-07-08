@@ -1,4 +1,4 @@
-import os, json, concurrent.futures
+import os, json, concurrent.futures, copy, shutil
 from pathlib import Path
 from typing import Callable, Dict, Tuple
 
@@ -7,7 +7,7 @@ from tqdm import tqdm
 from box import Box
 import numpy as np
 
-from prep.utils import DirectoryManager
+from intervention.utils import DirectoryManager
 
 
 def _walk_archive(in_dir: Path, endswith: str, add_func: Callable[[Path, str], Dict]) -> set:
@@ -61,10 +61,7 @@ def dcm2mha(dm: DirectoryManager, archive_dir: Path, archive_json: Path = None):
     ).convert()
 
 
-def generate_mha2nnunet_jsons(dm: DirectoryManager, name: str, id: int) -> Tuple[Path, Path]:
-    if not 500 <= id < 1000:
-        raise ValueError("id must be between 500 and 999")
-
+def generate_mha2nnunet_jsons(dm: DirectoryManager) -> Tuple[Path, Path]:
     def walk_mha_archive_add_func(dirpath: Path, filename: str):
         patient_id = dirpath.parts[-1]
         mha = (dm.mha / patient_id / filename)
@@ -114,12 +111,12 @@ def generate_mha2nnunet_jsons(dm: DirectoryManager, name: str, id: int) -> Tuple
                     splits[s].append(archive[items.pop()])
 
     dataset_json = {
-        "description": "",
+        "description": "Segmentation model for NeedleNet",
         "tensorImageSize": "3D",
         "reference": "",
         "licence": "",
-        "release": "0.3",
-        "task": f"Task{id}_{name}",
+        "release": "0.4",
+        "task": dm.task_dirname,
         "modality": {
             "0": "trufi"
         },
@@ -172,22 +169,48 @@ def generate_mha2nnunet_jsons(dm: DirectoryManager, name: str, id: int) -> Tuple
     return train_json, test_json
 
 
-def mha2nnunet(dm: DirectoryManager, train_json: Path, test_json: Path = None):
+def mha2nnunet(dm: DirectoryManager, train_json: Path, test_json: Path):
+    train = dm.nnunet / 'train'
+    test = dm.nnunet / 'test'
+    
     picai_prep.MHA2nnUNetConverter(
         input_path=dm.mha.as_posix(),
         annotations_path=dm.annotations.as_posix(),
-        output_path=(dm.nnunet / 'train').as_posix(),
+        output_path=train.as_posix(),
         settings_path=train_json.as_posix()
     ).convert()
 
-    if test_json:
-        picai_prep.MHA2nnUNetConverter(
-            input_path=dm.mha.as_posix(),
-            annotations_path=dm.annotations.as_posix(),
-            output_path=(dm.nnunet / 'test').as_posix(),
-            settings_path=test_json.as_posix(),
-            out_dir_scans="imagesTs",
-            out_dir_annot="labelsTs"
-        ).convert()
+    picai_prep.MHA2nnUNetConverter(
+        input_path=dm.mha.as_posix(),
+        annotations_path=dm.annotations.as_posix(),
+        output_path=test.as_posix(),
+        settings_path=test_json.as_posix(),
+        out_dir_scans="imagesTs",
+        out_dir_annot="labelsTs"
+    ).convert()
 
-    # merge results, imagesTs to the train folder, delete folders and done
+    train_task = train / dm.task_dirname
+    test_task = test / dm.task_dirname
+        
+    with open(train_task / 'dataset.json') as f:
+        train_dataset = json.load(f)
+    with open(test_task / 'dataset.json') as f:
+        test_dataset = json.load(f)
+
+    dataset = copy.copy(train_dataset)
+    dataset['numTest'] = len(test_dataset['training'])
+    dataset['test'] = [{'image': i['image'].replace('sTr/', 'sTs/'),
+                        'label': i['label'].replace('sTr/', 'sTs/')} for i in test_dataset['training']]
+
+    output = dm.nnunet / dm.task_dirname
+    output.mkdir(parents=True)
+
+    shutil.move(train_task / 'imagesTr', output / 'imagesTr')
+    shutil.move(train_task / 'labelsTr', output / 'labelsTr')
+    shutil.move(test_task / 'imagesTs', output / 'imagesTs')
+    shutil.move(test_task / 'labelsTs', output / 'labelsTs')
+    with open(output / 'dataset.json', 'w') as f:
+        json.dump(dataset, f)
+
+    shutil.rmtree(train)
+    shutil.rmtree(test)

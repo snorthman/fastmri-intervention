@@ -4,10 +4,10 @@ from datetime import datetime
 
 import click, jsonschema
 
-from prep.convert import dcm2mha, generate_dcm2mha_json, mha2nnunet, generate_mha2nnunet_jsons
-from prep.upload import upload_data, delete_all_data
-from prep.annotate import write_annotations
-from prep.utils import now, DirectoryManager, GCAPI, workflow_schema
+from convert import dcm2mha, generate_dcm2mha_json, mha2nnunet, generate_mha2nnunet_jsons
+from upload import upload_data, delete_all_data
+from annotate import write_annotations
+from intervention.utils import now, DirectoryManager, GCAPI, settings_schema, initialize
 
 
 def create_timestamp(path: Path):
@@ -77,40 +77,25 @@ def step_annotations(dm: DirectoryManager, gc: GCAPI):
     write_annotations(dm, gc)
 
 
-def step_mha2nnunet(dm: DirectoryManager, name: str, id: int):
+def step_mha2nnunet(dm: DirectoryManager):
     logging.info("STEP_MHA2NNUNET")
     create_timestamp(dm.nnunet)
 
-    train = Path(dm.output / 'mha2nnunet_train_settings.json')
-    test = Path(dm.output / 'mha2nnunet_test_settings.json')
-    if not train.exists() or not test.exists():
-        logging.info(f'No mha2nnunet_settings.jsons found, generating...')
-        train, test = generate_mha2nnunet_jsons(dm, name, id)
-
     logging.info(f'Converting mha @ {dm.mha} to nnunet structure @ {dm.nnunet}...')
-    mha2nnunet(dm, train, test)
+    mha2nnunet(dm)
 
 
-def workflow(**kwargs):
-    logging.basicConfig(filename=f'fastmri-intervention_{now()}.log',
-                        encoding='utf-8',
-                        level=logging.INFO)
+def prep(**kwargs):
+    archive_dir, dm, gc = initialize('prep', settings_schema, kwargs)
     start = datetime.now()
-    logging.info(f"Program start at {start}")
+    logging.info(f"Program started at {start}")
 
-    jsonschema.validate(kwargs, workflow_schema, jsonschema.Draft7Validator)
-
-    archive_dir = Path(kwargs['archive_dir'])
-    dm = DirectoryManager(Path('.'), Path(kwargs['out_dir']))
-
-    gc = GCAPI(kwargs['gc_slug'], kwargs['gc_api'])
-
-    steps = kwargs['run']
+    steps = kwargs.get('prep_run', {})
     funcs = []
     for id, step in [('dcm2mha', lambda: step_dcm2mha(dm, archive_dir)),
                  ('upload', lambda: step_upload(dm, gc)),
                  ('annotate', lambda: step_annotations(dm, gc)),
-                 ('mha2nnunet', lambda: step_mha2nnunet(dm, kwargs['task_name'], kwargs['task_id']))]:
+                 ('mha2nnunet', lambda: step_mha2nnunet(dm))]:
         if id in steps or 'all' in steps:
             funcs.append(step)
 

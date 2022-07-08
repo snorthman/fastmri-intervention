@@ -1,10 +1,9 @@
 import os, time, logging, httpx
 from pathlib import Path
 
-import click
 from tqdm import tqdm
 
-from prep.utils import GCAPI
+from intervention.utils import GCAPI
 
 
 def upload_data(input: Path, gc: GCAPI, test: bool = False):

@@ -10,7 +10,7 @@ from shapely.geometry import Polygon, Point, LineString, MultiPoint
 from quaternion import from_vector_part, rotate_vectors
 from tqdm import tqdm
 
-from prep.utils import GCAPI, DirectoryManager
+from intervention.utils import GCAPI, DirectoryManager
 
 # in mm
 diameter_base = 12

@@ -1,29 +1,18 @@
-import shutil, httpx, logging
-from pathlib import Path, PurePath
+import httpx, logging
+from pathlib import Path
 from datetime import datetime
+from typing import Tuple
 
-import gcapi
-
-
-def remake_dir(dir: Path) -> Path:
-    if dir.exists():
-        shutil.rmtree(dir)
-    dir.mkdir()
-    return dir
+import gcapi, jsonschema
 
 
 def now() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
-def nnunet_dirs(base_dir: Path):
-    return base_dir / 'nnUNet_raw_data', base_dir / 'nnunet_preprocessed', base_dir / f'nnunet_results_{now()}'
-
-
 class DirectoryManager:
-    def __init__(self, base: Path, output_dir: Path):
+    def __init__(self, base: Path, output_dir: Path, task_name: str, task_id: int):
         """
-
         :param base: Working directory
         :param output_dir: Output directory to store all output in (base / output_dir)
         """
@@ -32,10 +21,16 @@ class DirectoryManager:
         self.mha = self.output / 'mha'
         self.upload = self.output / 'upload'
         self.annotations = self.output / 'annotations'
-        self.nnunet = self.output / 'nnunet'
+        self.nnunet = self.output / 'nnUNet_raw_data'
+
+        if not 500 <= task_id < 1000:
+            raise ValueError("id must be between 500 and 999")
+        self.task_dirname = f'Task{task_id}_{task_name}'
+        self._task_dirname = (task_name, task_id)
 
     def from_base(self, base: Path) -> 'DirectoryManager':
-        return DirectoryManager(base, self._output_dir)
+        task_name, task_id = self._task_dirname
+        return DirectoryManager(base, self._output_dir, task_name, task_id)
 
 
 class GCAPI:
@@ -100,7 +95,21 @@ class GCAPI:
         return self._cases
 
 
-workflow_schema = {
+def initialize(name: str, schema: dict, kwargs: dict) -> Tuple[Path, DirectoryManager, GCAPI]:
+    logging.basicConfig(filename=f'intervention_{name}_{now()}.log',
+                        encoding='utf-8',
+                        level=logging.INFO)
+
+    jsonschema.validate(kwargs, schema, jsonschema.Draft7Validator)
+
+    archive_dir = Path(kwargs['archive_dir'])
+    dm = DirectoryManager(Path('.'), Path(kwargs['out_dir']), kwargs['task_name'], kwargs['task_id'])
+    gc = GCAPI(kwargs['gc_slug'], kwargs['gc_api'])
+
+    return archive_dir, dm, gc
+
+
+settings_schema = {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",
     "properties": {
@@ -132,15 +141,18 @@ workflow_schema = {
             "minimum": 500,
             "maximum": 999
         },
-        "run": {
+        "prep_run": {
             "description": "select tasks to run, order is non-configurable",
             "type": "array",
             "contains": {
                 "type": "string",
                 "enum": ["dcm2mha", "upload", "annotate", "mha2nnunet", "all"]
             }
+        },
+        "results_dir": {
+            "description": "segmentation nnUnet containing the fold directories",
+            "type": "string"
         }
     },
-    "required": ["out_dir", "archive_dir", "gc_slug", "gc_api", "task_name", "task_id", "run"],
-    "additionalProperties": False
+    "required": ["out_dir", "archive_dir", "gc_slug", "gc_api", "task_name", "task_id"]
 }
