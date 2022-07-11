@@ -130,40 +130,17 @@ class Settings:
         self.run_prep = settings.get('run_prep', [])
 
     def summary(self):
-        def sum_dir(d: Path, error=False) -> str:
-            val = str(d)
-            if d.exists() and d.is_dir():
-                val += ' <<EXISTS>>'
-            if error:
-                logging.critical(e := f'{d} does not exist or is not a directory.')
-                raise NotADirectoryError(e)
-            return val
+        txt = ['', '']
+        dirs = [self.archive_dir, self.results_dir, self.dm.output, self.dm.dcm, self.dm.mha, self.dm.annotations, self.dm.nnunet]
+        settings = [self.dm.dcm_settings_json, self.dm.nnunet_train_json, self.dm.nnunet_test_json, self.dm.nnunet_split_json]
+        for P, i, b in [(dirs, 0, True), (settings, 1, False)]:
+            for p in filter(None, P):
+                txt[i] += str(p)
+                if p.exists() and p.is_dir() == b:
+                    txt[i] += ' <<EXISTS>>'
+                txt[i] += '\n'
 
-        def sum_settings(d: Path, error=False) -> str:
-            val = str(d)
-            if d.exists() and not d.is_dir():
-                val += ' <<EXISTS>>'
-            elif error:
-                logging.critical(e := f'{d} does not exist or is not a directory.')
-                raise NotADirectoryError(e)
-            return val
-
-        return f"""DIRECTORIES:
-{sum_dir(self.dm.output, error=True)}
-{sum_dir(self.dm.dcm)}
-{sum_dir(self.dm.mha)}
-{sum_dir(self.dm.annotations)}
-{sum_dir(self.dm.nnunet)}
-
-SETTINGS:
-{sum_settings(self.dm.dcm_settings_json)}
-{sum_settings(self.dm.nnunet_train_json)}
-{sum_settings(self.dm.nnunet_test_json)}
-{sum_settings(self.dm.nnunet_split_json)}
-
-JSON:        
-{self.json}
-"""
+        return f"DIRECTORIES:\n{txt[0]}SETTINGS:\n{txt[1]}JSON:\n{self.json}"
 
     @staticmethod
     def _schema():

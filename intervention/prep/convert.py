@@ -55,14 +55,11 @@ def generate_dcm2mha_json(dm: DirectoryManager, archive_dir: Path) -> Path:
     return dcm2mha_settings
 
 
-def dcm2mha(dm: DirectoryManager, archive_dir: Path, dcm2mha_settings: Path = None):
-    if not dcm2mha_settings:
-        dcm2mha_settings = generate_dcm2mha_json(dm, archive_dir)
-
+def dcm2mha(dm: DirectoryManager, archive_dir: Path):
     picai_prep.Dicom2MHAConverter(
         input_dir=archive_dir.as_posix(),
         output_dir=dm.mha.as_posix(),
-        dcm2mha_settings=dcm2mha_settings.as_posix(),
+        dcm2mha_settings=dm.dcm_settings_json.as_posix(),
     ).convert()
 
 
@@ -170,7 +167,7 @@ def generate_mha2nnunet_jsons(dm: DirectoryManager):
 
     test = []
     test.extend(splits[-1])
-    with open(dm.nnunet_train_json, 'w') as f:
+    with open(dm.nnunet_test_json, 'w') as f:
         json.dump(dump_settings(test), f, indent=4)
 
 

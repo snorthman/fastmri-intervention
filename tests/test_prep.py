@@ -41,14 +41,20 @@ def inputs():
     return dm, archive_dir, gc
 
 
-def test_dcm2mha(inputs):
+def test_dcm(inputs):
     dm, archive_dir, _ = inputs
 
     remake_dir(dm.dcm)
+
+    convert.generate_dcm2mha_json(dm, archive_dir)
+
+
+def test_dcm2mha(inputs):
+    dm, archive_dir, _ = inputs
+
     remake_dir(dm.mha)
 
-    archive_json = convert.generate_dcm2mha_json(dm, archive_dir)
-    convert.dcm2mha(dm, archive_dir, archive_json)
+    convert.dcm2mha(dm, archive_dir)
 
     # specific to 10880
     assert assert_dir(dm.mha / '10880', '10880_182386710290888504267667945338785981449_needle_0.mha',
@@ -81,7 +87,7 @@ def test_mha2nnunet(inputs):
     convert.mha2nnunet(dm)
 
     # specific to 10880
-    assert assert_dir(dm.output, 'mha2nnunet_train_settings.json')
+    assert assert_dir(dm.nnunet, 'mha2nnunet_train_settings.json', 'mha2nnunet_test_settings.json', 'nnunet_split.json')
     assert assert_dir(dm.nnunet, dm.task_dirname)
     assert assert_dir(dm.nnunet / dm.task_dirname, 'dataset.json', 'imagesTr', 'labelsTr', 'imagesTs', 'labelsTs')
     for niigz in ['10880_182386710290888504267667945338785981449_5_0000.nii.gz', '10880_244375702689236279917785509476093985322_1_0000.nii.gz']:
@@ -90,7 +96,7 @@ def test_mha2nnunet(inputs):
         assert any([assert_dir(dm.nnunet / dm.task_dirname / t, niigz) for t in ['labelsTr', 'labelsTs']])
 
 
-def test_prepare():
+def test_prep():
     remake_dir(Path('tests/output'))
 
     intervention.prep.prep(Settings('test', Path('tests/input/settings.json')))
