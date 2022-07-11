@@ -3,9 +3,9 @@ from pathlib import Path
 
 import click
 
-from intervention.prep import prep
-from intervention.segment.predict import predict
-from intervention.utils import Settings
+from .prep import prep
+from .segment.predict import predict
+from .utils import Settings
 
 
 @click.group()

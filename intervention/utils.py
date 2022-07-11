@@ -1,7 +1,6 @@
 import httpx, logging, json
 from pathlib import Path
 from datetime import datetime
-from typing import Tuple
 
 import gcapi, jsonschema
 

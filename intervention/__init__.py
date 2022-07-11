@@ -1,1 +1,1 @@
-from intervention.cli import cli
+from .cli import cli
