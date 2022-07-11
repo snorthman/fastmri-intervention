@@ -21,6 +21,8 @@ def _walk_archive(in_dir: Path, endswith: str, add_func: Callable[[Path, str], D
 
 
 def generate_dcm2mha_json(dm: DirectoryManager, archive_dir: Path) -> Path:
+    dcm2mha_settings = dm.dcm / 'dcm2mha_settings.json'
+
     def walk_dcm_archive_add_func(dirpath: Path, _: str):
         return {
             "patient_id": dirpath.parts[-3],
@@ -44,24 +46,29 @@ def generate_dcm2mha_json(dm: DirectoryManager, archive_dir: Path) -> Path:
     mappings = {'needle': {'SeriesDescription': ['naald', 'nld']}}
     options = {'allow_duplicates': True}
 
-    j = dm.output / 'dcm2mha_settings.json'
-    with open(j, 'w') as f:
+    dm.dcm.mkdir(exist_ok=True)
+    with open(dcm2mha_settings, 'w') as f:
         json.dump({"options": options,
                    "mappings": mappings,
                    "archive": list([a.to_dict() for a in archive])}, f, indent=4)
 
-    return j
+    return dcm2mha_settings
 
 
-def dcm2mha(dm: DirectoryManager, archive_dir: Path, archive_json: Path = None):
+def dcm2mha(dm: DirectoryManager, archive_dir: Path, dcm2mha_settings: Path = None):
+    if not dcm2mha_settings:
+        dcm2mha_settings = generate_dcm2mha_json(dm, archive_dir)
+
     picai_prep.Dicom2MHAConverter(
         input_dir=archive_dir.as_posix(),
         output_dir=dm.mha.as_posix(),
-        dcm2mha_settings=archive_json.as_posix(),
+        dcm2mha_settings=dcm2mha_settings.as_posix(),
     ).convert()
 
 
-def generate_mha2nnunet_jsons(dm: DirectoryManager) -> Tuple[Path, Path]:
+def generate_mha2nnunet_jsons(dm: DirectoryManager):
+    dm.nnunet.mkdir(exist_ok=True)
+
     def walk_mha_archive_add_func(dirpath: Path, filename: str):
         patient_id = dirpath.parts[-1]
         mha = (dm.mha / patient_id / filename)
@@ -149,7 +156,7 @@ def generate_mha2nnunet_jsons(dm: DirectoryManager) -> Tuple[Path, Path]:
                 group.append(f'{item.patient_id}_{item.study_id}')
         nnunet_split.append({'train': train, 'val': val})
 
-    with open(dm.output / 'nnunet_split.json', 'w') as f:
+    with open(dm.nnunet_split_json, 'w') as f:
         json.dump(nnunet_split, f, indent=4)
 
     dump_settings = lambda A: {"dataset_json": dataset_json,
@@ -158,33 +165,34 @@ def generate_mha2nnunet_jsons(dm: DirectoryManager) -> Tuple[Path, Path]:
 
     train = []
     [train.extend(s) for s in splits[:splits_n - 1]]
-    with open(train_json := dm.output / f'mha2nnunet_train_settings.json', 'w') as f:
+    with open(dm.nnunet_train_json, 'w') as f:
         json.dump(dump_settings(train), f, indent=4)
 
     test = []
     test.extend(splits[-1])
-    with open(test_json := dm.output / f'mha2nnunet_test_settings.json', 'w') as f:
+    with open(dm.nnunet_train_json, 'w') as f:
         json.dump(dump_settings(test), f, indent=4)
 
-    return train_json, test_json
 
+def mha2nnunet(dm: DirectoryManager):
+    if not dm.nnunet_train_json.exists() or not dm.nnunet_test_json.exists():
+        generate_mha2nnunet_jsons(dm)
 
-def mha2nnunet(dm: DirectoryManager, train_json: Path, test_json: Path):
     train = dm.nnunet / 'train'
     test = dm.nnunet / 'test'
-    
+
     picai_prep.MHA2nnUNetConverter(
         input_path=dm.mha.as_posix(),
         annotations_path=dm.annotations.as_posix(),
         output_path=train.as_posix(),
-        settings_path=train_json.as_posix()
+        settings_path=dm.nnunet_train_json.as_posix()
     ).convert()
 
     picai_prep.MHA2nnUNetConverter(
         input_path=dm.mha.as_posix(),
         annotations_path=dm.annotations.as_posix(),
         output_path=test.as_posix(),
-        settings_path=test_json.as_posix(),
+        settings_path=dm.nnunet_test_json.as_posix(),
         out_dir_scans="imagesTs",
         out_dir_annot="labelsTs"
     ).convert()
@@ -203,6 +211,8 @@ def mha2nnunet(dm: DirectoryManager, train_json: Path, test_json: Path):
                         'label': i['label'].replace('sTr/', 'sTs/')} for i in test_dataset['training']]
 
     output = dm.nnunet / dm.task_dirname
+    if output.exists():
+        shutil.rmtree(output)
     output.mkdir(parents=True)
 
     shutil.move(train_task / 'imagesTr', output / 'imagesTr')

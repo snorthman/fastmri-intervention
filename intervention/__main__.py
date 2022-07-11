@@ -4,6 +4,7 @@ from pathlib import Path
 import click
 
 import intervention.prep, intervention.segment
+from utils import Settings
 
 
 @click.group()
@@ -15,15 +16,13 @@ def cli():
 @click.option('-s', '--settings', type=click.Path(resolve_path=True, path_type=Path),
               prompt='Enter path/to/settings.json', default='.', help="Path to json settings file")
 def prep(settings: Path):
-    with open(settings) as j:
-        settings = json.load(j)
-    intervention.prep.prep(**settings)
+    intervention.prep.prep(Settings('prep', settings))
 
 
-@cli.command(name='diagnose')
+@cli.command(name='segment')
 @click.option('-s', '--settings', type=click.Path(resolve_path=True, path_type=Path),
               prompt='Enter path/to/settings.json', default='.', help="Path to json settings file")
-def prep(settings: Path):
+def segment(settings: Path):
     with open(settings) as j:
         settings = json.load(j)
-    intervention.segment.diagnose(**settings)
+    intervention.segment.diagnose(Settings('segment', settings))

@@ -205,6 +205,7 @@ def write_annotations(dm: DirectoryManager, gc: GCAPI, base_needle: int = 1, nee
 
     click.echo(f'Downloaded {len(answers)} case answers from Grand Challenge')
 
+    dm.annotations.mkdir(exist_ok=True)
     successes, errors = 0, 0
     with ThreadPoolExecutor(max_workers=min(8, (os.cpu_count() or 1) + 4), initializer=initializer_worker) as pool:
         futures = {pool.submit(_write_annotation, a): a for a in answers}
@@ -217,5 +218,5 @@ def write_annotations(dm: DirectoryManager, gc: GCAPI, base_needle: int = 1, nee
     skips = len(answers) - successes - errors
     click.echo(f'Wrote {successes} annotations, with {skips} skipped and {errors} failed')
 
-    with open(dm.annotations / f'{datetime.now().strftime("%Y%m%d%H%M%S")}.log', 'w') as f:
+    with open(dm.annotations / f'annotation_log_{datetime.now().strftime("%Y%m%d%H%M%S")}.log', 'w') as f:
         f.writelines([f'{a.error}\n' for a in answers if not a.is_valid()])

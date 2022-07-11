@@ -1,12 +1,12 @@
-import shutil, os, json
+import shutil, os
 from pathlib import Path
 
 import pytest
 
-import intervention.prep.prep as prep
+import intervention.prep.prep
 import intervention.prep.convert as convert
 import intervention.prep.annotate as annotate
-from intervention.utils import DirectoryManager, GCAPI
+from intervention.utils import DirectoryManager, GCAPI, Settings
 
 
 def remake_dir(dir: Path) -> Path:
@@ -22,6 +22,7 @@ def assert_dir(dir: Path, *contents):
         if b not in A:
             return False
     return True
+
 
 @pytest.fixture(scope="module")
 def inputs():
@@ -43,7 +44,9 @@ def inputs():
 def test_dcm2mha(inputs):
     dm, archive_dir, _ = inputs
 
+    remake_dir(dm.dcm)
     remake_dir(dm.mha)
+
     archive_json = convert.generate_dcm2mha_json(dm, archive_dir)
     convert.dcm2mha(dm, archive_dir, archive_json)
 
@@ -74,6 +77,7 @@ def test_mha2nnunet(inputs):
     dm, _, _ = inputs
 
     remake_dir(dm.nnunet)
+
     convert.mha2nnunet(dm)
 
     # specific to 10880
@@ -87,6 +91,6 @@ def test_mha2nnunet(inputs):
 
 
 def test_prepare():
-    with open('tests/input/settings.json') as j:
-        settings = json.load(j)
-    prep.prep(**settings)
+    remake_dir(Path('tests/output'))
+
+    intervention.prep.prep(Settings('test', Path('tests/input/settings.json')))

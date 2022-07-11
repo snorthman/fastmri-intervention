@@ -1,33 +1,56 @@
-import pickle
+import subprocess, os, logging
 from pathlib import Path
 
-import torch, nnunet.inference.predict as predict
+import torch, nnunet.inference.predict as predict, click
 
-from intervention.utils import initialize, settings_schema
+from intervention.utils import Settings
 
 
-def diagnose_fold(fold_dir: Path):
+def predict(self, task, trainer="nnUNetTrainerV2", network="3d_fullres",
+            checkpoint="model_final_checkpoint", folds="0,1,2,3,4", store_probability_maps=True,
+            disable_augmentation=False, disable_patch_overlap=False):
     """
-    For each fold, we provide a mean accuracy, intersection-over-union (score), ... https://www.sciencedirect.com/science/article/pii/S1746809420304912
-    :param fold_dir:
-    :return:
+    Use trained nnUNet network to generate segmentation masks
     """
-    model = fold_dir / 'model_best.model'
-    model_pkl = fold_dir / 'model_best.model.pkl'
 
-    with open(model_pkl, 'rb') as f:
-        p = pickle.load(f)
-    with open(model, 'rb') as f:
-        m = torch.load(f, map_location=torch.device('cpu'))
-    #network = nnunet.SegmentationNetwork.load_state_dict()
-    predict.predict_cases()
+    # Set environment variables
+    os.environ['RESULTS_FOLDER'] = str(self.nnunet_results)
+
+    # Run prediction script
+    cmd = [
+        'nnUNet_predict',
+        '-t', task,
+        '-i', str(self.nnunet_inp_dir),
+        '-o', str(self.nnunet_out_dir),
+        '-m', network,
+        '-tr', trainer,
+        '--num_threads_preprocessing', '2',
+        '--num_threads_nifti_save', '1'
+    ]
+
+    if folds:
+        cmd.append('-f')
+        cmd.extend(folds.split(','))
+
+    if checkpoint:
+        cmd.append('-chk')
+        cmd.append(checkpoint)
+
+    if store_probability_maps:
+        cmd.append('--save_npz')
+
+    if disable_augmentation:
+        cmd.append('--disable_tta')
+
+    if disable_patch_overlap:
+        cmd.extend(['--step_size', '1'])
+
+    subprocess.check_call(cmd)
 
 
-def diagnose(**kwargs):
-    archive_dir, dm, gc = initialize('prep', settings_schema, kwargs)
+def diagnose(settings: Settings):
+    s = settings.summary()
+    logging.debug(s)
+    click.confirm(s, abort=True)
 
-    results_dir = Path(kwargs['results_dir'])
-
-    for item in results_dir.iterdir():
-        if 'fold' in item.name and item.is_dir():
-            diagnose_fold(item)
+    results_dir = settings.results_dir

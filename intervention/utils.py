@@ -1,4 +1,4 @@
-import httpx, logging
+import httpx, logging, json
 from pathlib import Path
 from datetime import datetime
 from typing import Tuple
@@ -18,10 +18,15 @@ class DirectoryManager:
         """
         self._output_dir = Path(output_dir)
         self.output = Path(base / self._output_dir)
+        self.dcm = self.output / 'dcm'
+        self.dcm_settings_json = self.dcm / 'dcm2mha_settings.json'
         self.mha = self.output / 'mha'
         self.upload = self.output / 'upload'
         self.annotations = self.output / 'annotations'
         self.nnunet = self.output / 'nnUNet_raw_data'
+        self.nnunet_split_json = self.nnunet / 'nnunet_split.json'
+        self.nnunet_train_json = self.nnunet / f'mha2nnunet_train_settings.json'
+        self.nnunet_test_json = self.nnunet / f'mha2nnunet_test_settings.json'
 
         if not 500 <= task_id < 1000:
             raise ValueError("id must be between 500 and 999")
@@ -95,64 +100,117 @@ class GCAPI:
         return self._cases
 
 
-def initialize(name: str, schema: dict, kwargs: dict) -> Tuple[Path, DirectoryManager, GCAPI]:
-    logging.basicConfig(filename=f'intervention_{name}_{now()}.log',
-                        encoding='utf-8',
-                        level=logging.INFO)
+class Settings:
+    def __init__(self, name: str, json_path: Path):
+        with open(json_path) as j:
+            settings = json.load(j)
+        self.json = settings
 
-    jsonschema.validate(kwargs, schema, jsonschema.Draft7Validator)
+        n = datetime.now().strftime("%Y%m%d_%H%M%S")
+        logging.basicConfig(filename=f'intervention_{name}_{n}.log',
+                            encoding='utf-8',
+                            level=logging.INFO)
 
-    archive_dir = Path(kwargs['archive_dir'])
-    dm = DirectoryManager(Path('.'), Path(kwargs['out_dir']), kwargs['task_name'], kwargs['task_id'])
-    gc = GCAPI(kwargs['gc_slug'], kwargs['gc_api'])
+        jsonschema.validate(settings, Settings._schema(), jsonschema.Draft7Validator)
 
-    return archive_dir, dm, gc
+        def settings_dir(key: str):
+            if key not in settings:
+                return None
+            p = Path(settings[key])
+            if not p.exists() or not p.is_dir():
+                raise NotADirectoryError(f'{p} does not exist or is not a directory')
+            return p
 
+        self.archive_dir = settings_dir('archive_dir')
+        self.results_dir = settings_dir('results_dir')
 
-settings_schema = {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "type": "object",
-    "properties": {
-        "out_dir": {
-            "description": "where all output is sent",
-            "type": "string"
-        },
-        "archive_dir": {
-            "description": "where all dicom data is",
-            "type": "string"
-        },
-        "gc_slug": {
-            "description": "Grand Challenge reader study slug",
-            "type": "string"
-        },
-        "gc_api": {
-            "description": "Grand Challenge API key",
-            "type": "string",
-            "minLength": 64,
-            "maxLength": 64
-        },
-        "task_name": {
-            "description": "for nnUnet",
-            "type": "string"
-        },
-        "task_id": {
-            "description": "for nnUnet, between 500 and 999",
-            "type": "integer",
-            "minimum": 500,
-            "maximum": 999
-        },
-        "prep_run": {
-            "description": "select tasks to run, order is non-configurable",
-            "type": "array",
-            "contains": {
-                "type": "string",
-                "enum": ["dcm2mha", "upload", "annotate", "mha2nnunet", "all"]
-            }
-        },
-        "results_dir": {
-            "description": "segmentation nnUnet containing the fold directories",
-            "type": "string"
+        self.dm = DirectoryManager(Path('.'), settings_dir('out_dir'), settings['task_name'], settings['task_id'])
+        self.gc = GCAPI(settings['gc_slug'], settings['gc_api'])
+
+        self.run_prep = settings.get('run_prep', [])
+
+    def summary(self):
+        def sum_dir(d: Path, error=False) -> str:
+            val = str(d)
+            if d.exists() and d.is_dir():
+                val += ' <<EXISTS>>'
+            if error:
+                logging.critical(e := f'{d} does not exist or is not a directory.')
+                raise NotADirectoryError(e)
+            return val
+
+        def sum_settings(d: Path, error=False) -> str:
+            val = str(d)
+            if d.exists() and not d.is_dir():
+                val += ' <<EXISTS>>'
+            elif error:
+                logging.critical(e := f'{d} does not exist or is not a directory.')
+                raise NotADirectoryError(e)
+            return val
+
+        return f"""DIRECTORIES:
+{sum_dir(self.dm.output, error=True)}
+{sum_dir(self.dm.dcm)}
+{sum_dir(self.dm.mha)}
+{sum_dir(self.dm.annotations)}
+{sum_dir(self.dm.nnunet)}
+
+SETTINGS:
+{sum_settings(self.dm.dcm_settings_json)}
+{sum_settings(self.dm.nnunet_train_json)}
+{sum_settings(self.dm.nnunet_test_json)}
+{sum_settings(self.dm.nnunet_split_json)}
+
+JSON:        
+{self.json}
+"""
+
+    @staticmethod
+    def _schema():
+        return {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "properties": {
+                "out_dir": {
+                    "description": "where all output is sent",
+                    "type": "string"
+                },
+                "archive_dir": {
+                    "description": "where all dicom data is",
+                    "type": "string"
+                },
+                "gc_slug": {
+                    "description": "Grand Challenge reader study slug",
+                    "type": "string"
+                },
+                "gc_api": {
+                    "description": "Grand Challenge API key",
+                    "type": "string",
+                    "minLength": 64,
+                    "maxLength": 64
+                },
+                "task_name": {
+                    "description": "for nnUnet",
+                    "type": "string"
+                },
+                "task_id": {
+                    "description": "for nnUnet, between 500 and 999",
+                    "type": "integer",
+                    "minimum": 500,
+                    "maximum": 999
+                },
+                "prep_run": {
+                    "description": "select tasks to run, order is non-configurable",
+                    "type": "array",
+                    "contains": {
+                        "type": "string",
+                        "enum": ["dcm", "dcm2mha", "upload", "annotate", "mha2nnunet"]
+                    }
+                },
+                "results_dir": {
+                    "description": "segmentation nnUnet containing the fold directories",
+                    "type": "string"
+                }
+            },
+            "required": ["out_dir", "archive_dir", "gc_slug", "gc_api", "task_name", "task_id"]
         }
-    },
-    "required": ["out_dir", "archive_dir", "gc_slug", "gc_api", "task_name", "task_id"]
-}
