@@ -3,7 +3,8 @@ from pathlib import Path
 
 import click
 
-import intervention.prep, intervention.segment
+from intervention.prep import prep
+from intervention.segment.predict import predict
 from intervention.utils import Settings
 
 
@@ -16,7 +17,7 @@ def cli():
 @click.option('-s', '--settings', type=click.Path(resolve_path=True, path_type=Path),
               prompt='Enter path/to/settings.json', default='.', help="Path to json settings file")
 def prep(settings: Path):
-    intervention.prep.prep(Settings('prep', settings))
+    prep(Settings('prep', settings))
 
 
 @cli.command(name='segment')
@@ -25,4 +26,4 @@ def prep(settings: Path):
 def segment(settings: Path):
     with open(settings) as j:
         settings = json.load(j)
-    intervention.segment.diagnose(Settings('segment', settings))
+    predict(Settings('segment', settings))

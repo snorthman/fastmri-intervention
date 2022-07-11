@@ -7,9 +7,10 @@ import click
 from intervention.utils import Settings, DirectoryManager
 
 
-def predict(dm: DirectoryManager, folds: List = None, trainer: str = "nnUNetTrainerV2", network: str = "3d_fullres",
-            checkpoint: str = "model_final_checkpoint", store_probability_maps: bool = True,
-            disable_augmentation: bool = False, disable_patch_overlap: bool = False):
+def _nnUNet_predict(dm: DirectoryManager, results_dir: Path, folds: List = None, trainer: str = "nnUNetTrainerV2",
+                    network: str = "3d_fullres", checkpoint: str = "model_final_checkpoint",
+                    store_probability_maps: bool = True, disable_augmentation: bool = False,
+                    disable_patch_overlap: bool = False):
     """
     Use trained nnUNet network to generate segmentation masks
     """
@@ -49,9 +50,9 @@ def predict(dm: DirectoryManager, folds: List = None, trainer: str = "nnUNetTrai
     subprocess.check_call(cmd)
 
 
-def diagnose(settings: Settings):
+def predict(settings: Settings):
     s = settings.summary()
     logging.debug(s)
     click.confirm(s, abort=True)
 
-    predict(settings.dm, settings.results_dir, checkpoint='model_best')
+    _nnUNet_predict(settings.dm, settings.results_dir, checkpoint='model_best')

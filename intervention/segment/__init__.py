@@ -1,1 +1,1 @@
-from intervention.segment.diagnostics import diagnose
+from intervention.segment.predict import predict
