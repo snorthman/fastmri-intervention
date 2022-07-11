@@ -1,36 +1,37 @@
 import subprocess, os, logging
+from typing import List
 from pathlib import Path
 
-import torch, nnunet.inference.predict as predict, click
+import click
 
-from intervention.utils import Settings
+from intervention.utils import Settings, DirectoryManager
 
 
-def predict(self, task, trainer="nnUNetTrainerV2", network="3d_fullres",
-            checkpoint="model_final_checkpoint", folds="0,1,2,3,4", store_probability_maps=True,
-            disable_augmentation=False, disable_patch_overlap=False):
+def predict(dm: DirectoryManager, folds: List = None, trainer: str = "nnUNetTrainerV2", network: str = "3d_fullres",
+            checkpoint: str = "model_final_checkpoint", store_probability_maps: bool = True,
+            disable_augmentation: bool = False, disable_patch_overlap: bool = False):
     """
     Use trained nnUNet network to generate segmentation masks
     """
 
     # Set environment variables
-    os.environ['RESULTS_FOLDER'] = str(self.nnunet_results)
+    os.environ['RESULTS_FOLDER'] = str(results_dir)
 
     # Run prediction script
     cmd = [
         'nnUNet_predict',
-        '-t', task,
-        '-i', str(self.nnunet_inp_dir),
-        '-o', str(self.nnunet_out_dir),
+        '-t', dm.task_dirname,
+        '-i', str(dm.nnunet / dm.task_dirname / 'imagesTs'),
+        '-o', str(dm.predict),
         '-m', network,
         '-tr', trainer,
         '--num_threads_preprocessing', '2',
         '--num_threads_nifti_save', '1'
     ]
 
-    if folds:
-        cmd.append('-f')
-        cmd.extend(folds.split(','))
+    # if folds:
+    #     cmd.append('-f')
+    #     cmd.extend(folds.split(','))
 
     if checkpoint:
         cmd.append('-chk')
@@ -53,4 +54,4 @@ def diagnose(settings: Settings):
     logging.debug(s)
     click.confirm(s, abort=True)
 
-    results_dir = settings.results_dir
+    predict(settings.dm, settings.results_dir, checkpoint='model_best')

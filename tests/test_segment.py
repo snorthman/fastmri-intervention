@@ -1,12 +1,10 @@
-import shutil, os, json
 from pathlib import Path
 
 import pytest
 
 import intervention.segment
+from intervention.utils import Settings
 
 
 def test_diagnose():
-    with open('tests/input/settings.json') as j:
-        settings = json.load(j)
-    intervention.segment.diagnose(**settings)
+    intervention.segment.diagnose(Settings('segment', Path('tests/input/settings.json')))

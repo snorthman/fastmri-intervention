@@ -27,6 +27,7 @@ class DirectoryManager:
         self.nnunet_split_json = self.nnunet / 'nnunet_split.json'
         self.nnunet_train_json = self.nnunet / f'mha2nnunet_train_settings.json'
         self.nnunet_test_json = self.nnunet / f'mha2nnunet_test_settings.json'
+        self.predict = self.output / 'predict'
 
         if not 500 <= task_id < 1000:
             raise ValueError("id must be between 500 and 999")
@@ -185,7 +186,7 @@ class Settings:
                     }
                 },
                 "results_dir": {
-                    "description": "segmentation nnUnet containing the fold directories",
+                    "description": "segmentation nnUnet results output directory",
                     "type": "string"
                 }
             },
