@@ -1,9 +1,9 @@
 from setuptools import setup
 
 setup(
-    name='fastmri-intervention-prep',
-    version='1.4',
-    packages=['prep'],
+    name='fastmri-intervention',
+    version='1.5',
+    packages=['intervention'],
     license='MIT',
     author='C.R. Noordman',
     author_email='stan.noordman@radboudumc.nl',
