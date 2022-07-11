@@ -4,7 +4,7 @@ from pathlib import Path
 import click
 
 import intervention.prep, intervention.segment
-from utils import Settings
+from intervention.utils import Settings
 
 
 @click.group()
