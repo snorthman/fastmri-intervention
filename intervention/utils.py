@@ -102,8 +102,8 @@ class GCAPI:
 
 class Settings:
     def __init__(self, name: str, json_path: Path):
-        with open(json_path) as j:
-            settings = json.load(j)
+        with open(json_path) as f:
+            settings = json.load(f)
         self.json = settings
 
         n = datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -24,6 +24,4 @@ def prep(settings: Path):
 @click.option('-s', '--settings', type=click.Path(resolve_path=True, path_type=Path),
               prompt='Enter path/to/settings.json', default='.', help="Path to json settings file")
 def segment(settings: Path):
-    with open(settings) as j:
-        settings = json.load(j)
     intervention.segment.predict(Settings('segment', settings))
