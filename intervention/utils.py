@@ -140,7 +140,7 @@ class Settings:
                     txt[i] += ' <<EXISTS>>'
                 txt[i] += '\n'
 
-        return f"DIRECTORIES:\n{txt[0]}SETTINGS:\n{txt[1]}JSON:\n{self.json}"
+        return f"DIRECTORIES:\n{txt[0]}\nSETTINGS:\n{txt[1]}\nJSON:\n{self.json}"
 
     @staticmethod
     def _schema():
@@ -176,9 +176,11 @@ class Settings:
                     "minimum": 500,
                     "maximum": 999
                 },
-                "prep_run": {
+                "run_prep": {
                     "description": "select tasks to run, order is non-configurable",
                     "type": "array",
+                    "minContains": 0,
+                    "uniqueItems": True,
                     "contains": {
                         "type": "string",
                         "enum": ["dcm", "dcm2mha", "upload", "annotate", "mha2nnunet"]
