@@ -1,9 +1,9 @@
-from setuptools import setup
+from setuptools import setup, find_namespace_packages
 
 setup(
     name='fastmri-intervention',
     version='1.5',
-    packages=['intervention'],
+    packages=find_namespace_packages(include=["intervention", "intervention.*"]),
     license='MIT',
     author='C.R. Noordman',
     author_email='stan.noordman@radboudumc.nl',
