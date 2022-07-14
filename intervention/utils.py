@@ -122,8 +122,6 @@ class Settings:
             return p
 
         self.archive_dir = settings_dir('archive_dir')
-        self.results_dir = settings_dir('results_dir')
-
         self.dm = DirectoryManager(Path('.'), settings_dir('out_dir'), settings['task_name'], settings['task_id'])
         self.gc = GCAPI(settings['gc_slug'], settings['gc_api'])
 
@@ -131,7 +129,7 @@ class Settings:
 
     def summary(self):
         txt = ['', '']
-        dirs = [self.archive_dir, self.results_dir, self.dm.output, self.dm.dcm, self.dm.mha, self.dm.annotations, self.dm.nnunet]
+        dirs = [self.archive_dir, self.dm.output, self.dm.dcm, self.dm.mha, self.dm.annotations, self.dm.nnunet, self.dm.predict]
         settings = [self.dm.dcm_settings_json, self.dm.nnunet_train_json, self.dm.nnunet_test_json, self.dm.nnunet_split_json]
         for P, i, b in [(dirs, 0, True), (settings, 1, False)]:
             for p in filter(None, P):
@@ -185,10 +183,6 @@ class Settings:
                         "type": "string",
                         "enum": ["dcm", "dcm2mha", "upload", "annotate", "mha2nnunet"]
                     }
-                },
-                "results_dir": {
-                    "description": "segmentation nnUnet results output directory",
-                    "type": "string"
                 }
             },
             "required": ["out_dir", "archive_dir", "gc_slug", "gc_api", "task_name", "task_id"]
