@@ -1,12 +1,11 @@
-import subprocess, os, logging, json, shutil
+import os, logging, json, shutil
 from typing import List
 from pathlib import Path
 
-import click
 from picai_prep import MHA2nnUNetConverter
 
-from intervention.utils import Settings, DirectoryManager, now, dataset_json
-from intervention.prep.convert import dcm2mha, mha2nnunet
+from intervention.utils import Settings, now, dataset_json
+from intervention.prep.convert import dcm2mha
 
 
 def _nnUNet_predict(results_dir: Path, input_dir: Path, output_dir: Path, task: str, trainer: str, folds: List = None,

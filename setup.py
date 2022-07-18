@@ -18,9 +18,7 @@ setup(
         'jsonschema~=4.6',
         'gcapi~=0.7',
         'picai-prep @ git+https://github.com/snorthman/picai_prep.git',
-        'click',
-        'torch~=1.12',
-        'nnunet~=1.7'
+        'click'
     ],
     entry_points={
         'console_scripts': [

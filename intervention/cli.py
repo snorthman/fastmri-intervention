@@ -4,7 +4,7 @@ from pathlib import Path
 import click
 
 import intervention.prep.prep
-import intervention.segment.predict
+import intervention.segment.inference
 from intervention.utils import Settings
 
 
