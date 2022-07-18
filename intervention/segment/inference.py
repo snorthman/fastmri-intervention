@@ -1,4 +1,5 @@
 import os, logging, json, shutil
+import subprocess
 from typing import List
 from pathlib import Path
 
@@ -48,7 +49,10 @@ def _nnUNet_predict(results_dir: Path, input_dir: Path, output_dir: Path, task: 
     if disable_patch_overlap:
         cmd.extend(['--step_size', '1'])
 
-    print(' '.join(cmd))
+    try:
+        subprocess.check_call(cmd)
+    finally:
+        print(' '.join(cmd))
 
 
 def inference(settings: Settings):
