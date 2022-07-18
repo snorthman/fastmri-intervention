@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 
 import click
@@ -23,5 +22,5 @@ def prep(settings: Path):
 @cli.command(name='inference')
 @click.option('-s', '--settings', type=click.Path(resolve_path=True, path_type=Path),
               prompt='Enter path/to/settings.json', default='.', help="Path to json settings file")
-def segment(settings: Path):
+def inference(settings: Path):
     intervention.segment.inference(Settings('inference', settings))

@@ -130,7 +130,6 @@ class Settings:
 
         n = datetime.now().strftime("%Y%m%d_%H%M%S")
         logging.basicConfig(filename=f'intervention_{name}_{n}.log',
-                            encoding='utf-8',
                             level=logging.INFO)
 
         jsonschema.validate(settings, Settings._schema(), jsonschema.Draft7Validator)
