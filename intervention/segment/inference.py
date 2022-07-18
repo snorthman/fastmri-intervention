@@ -9,8 +9,8 @@ from intervention.utils import Settings, DirectoryManager, now, dataset_json
 from intervention.prep.convert import dcm2mha, mha2nnunet
 
 
-def _nnUNet_predict(results_dir: Path, input_dir: Path, output_dir: Path, task: str, folds: List = None,
-                    trainer: str = "nnUNetTrainerV2", network: str = "3d_fullres", checkpoint: str = "model_final_checkpoint",
+def _nnUNet_predict(results_dir: Path, input_dir: Path, output_dir: Path, task: str, trainer: str, folds: List = None,
+                    network: str = "3d_fullres", checkpoint: str = "model_final_checkpoint",
                     store_probability_maps: bool = True, disable_augmentation: bool = False,
                     disable_patch_overlap: bool = False):
     """
@@ -27,7 +27,7 @@ def _nnUNet_predict(results_dir: Path, input_dir: Path, output_dir: Path, task: 
         '-i', str(input_dir),
         '-o', str(output_dir),
         '-m', network,
-        '-tr', trainer,
+        '-tr', trainer if trainer else "nnUNetTrainerV2",
         '--num_threads_preprocessing', '2',
         '--num_threads_nifti_save', '1'
     ]
@@ -49,7 +49,7 @@ def _nnUNet_predict(results_dir: Path, input_dir: Path, output_dir: Path, task: 
     if disable_patch_overlap:
         cmd.extend(['--step_size', '1'])
 
-    subprocess.check_call(cmd)
+    print(' '.join(cmd))
 
 
 def inference(settings: Settings):

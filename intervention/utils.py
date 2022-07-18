@@ -146,9 +146,8 @@ class Settings:
         self.archive_dir = settings_dir('archive_dir')
         self.dm = DirectoryManager(Path('.'), settings_dir('out_dir'), settings['task_name'], settings['task_id'])
         self.gc = GCAPI(settings['gc_slug'], settings['gc_api'])
-        self.trainer = settings['inference_trainer']
-
         self.run_prep = settings.get('run_prep', [])
+        self.trainer = settings.get('inference_trainer', None)
 
     def summary(self):
         txt = ['', '']
@@ -212,5 +211,5 @@ class Settings:
                     "type": "string",
                 }
             },
-            "required": ["out_dir", "archive_dir", "gc_slug", "gc_api", "task_name", "task_id", "inference_trainer"]
+            "required": ["out_dir", "archive_dir", "gc_slug", "gc_api", "task_name", "task_id"]
         }
