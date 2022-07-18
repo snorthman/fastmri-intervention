@@ -5,21 +5,18 @@
 Clone this repository to `path/to/module`.
 
 ```commandline
-cd path/to/module
-pip install .
-python -m ./prep --pelvis path/to/chansey/pelvis --archive path/to/radng_diag_prostate --json ./workflow.json
+pip install git+https://github.com/snorthman/fastmri-intervention
 ```
 
-where **./workflow.json** is
+where **./settings.json** is
 ```
 {
-  "out_dir": "--pelvis / base output directory",
-  "archive_dir": "--archive /Prostate-mpMRI-ScientificArchive/RUMC?",
+  "out_dir": "base output directory",
+  "archive_dir": "base archive directory",
   "gc_slug": "grand challenge reader study slug",
   "gc_api": "grand challenge API key",
-  "invalidate": ['mha', 'annotations', 'nnunet'] invalidates those data files,
-  "task_id": 500-999,
-  "task_name": "fastmri_intervention?",
-  "docker_version": 1+
+  "run_prep": ["dcm", "dcm2mha", "annotate", "mha2nnunet"],
+  "task_id": 500,
+  "task_name": "fastmri_intervention"
 }
 ```
