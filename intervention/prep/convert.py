@@ -7,7 +7,7 @@ from tqdm import tqdm
 from box import Box
 import numpy as np
 
-from intervention.utils import DirectoryManager
+from intervention.utils import DirectoryManager, dataset_json
 
 
 def _walk_archive(in_dir: Path, endswith: str, add_func: Callable[[Path, str], Dict]) -> set:
@@ -114,23 +114,6 @@ def generate_mha2nnunet_jsons(dm: DirectoryManager):
                 for s in S[:len(items)]:
                     splits[s].append(archive[items.pop()])
 
-    dataset_json = {
-        "description": "Segmentation model for NeedleNet",
-        "tensorImageSize": "3D",
-        "reference": "",
-        "licence": "",
-        "release": "0.4",
-        "task": dm.task_dirname,
-        "modality": {
-            "0": "trufi"
-        },
-        "labels": {
-            "0": "background",
-            "1": "needle",
-            "2": "tip"
-        }
-    }
-
     preprocessing = {
         "matrix_size": [
             5,
@@ -156,7 +139,7 @@ def generate_mha2nnunet_jsons(dm: DirectoryManager):
     with open(dm.nnunet_split_json, 'w') as f:
         json.dump(nnunet_split, f, indent=4)
 
-    dump_settings = lambda A: {"dataset_json": dataset_json,
+    dump_settings = lambda A: {"dataset_json": dataset_json(dm.task_dirname),
                                "preprocessing": preprocessing,
                                "archive": list([a.to_dict() for a in A])}
 

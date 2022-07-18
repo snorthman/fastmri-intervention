@@ -9,6 +9,25 @@ def now() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
+def dataset_json(task_dirname: str):
+    return {
+        "description": "Segmentation model for NeedleNet",
+        "tensorImageSize": "3D",
+        "reference": "",
+        "licence": "",
+        "release": "0.4",
+        "task": task_dirname,
+        "modality": {
+            "0": "needle"
+        },
+        "labels": {
+            "0": "background",
+            "1": "needle",
+            "2": "tip"
+        }
+    }
+
+
 class DirectoryManager:
     def __init__(self, base: Path, output_dir: Path, task_name: str, task_id: int):
         """
@@ -16,6 +35,7 @@ class DirectoryManager:
         :param output_dir: Output directory to store all output in (base / output_dir)
         """
         self._output_dir = Path(output_dir)
+        self._base = Path(base)
         self.output = Path(base / self._output_dir)
         self.dcm = self.output / 'dcm'
         self.dcm_settings_json = self.dcm / 'dcm2mha_settings.json'
@@ -33,9 +53,11 @@ class DirectoryManager:
         self.task_dirname = f'Task{task_id}_{task_name}'
         self._task_dirname = (task_name, task_id)
 
-    def from_base(self, base: Path) -> 'DirectoryManager':
+    def refactor(self, base: Path = None, output_dir: Path = None) -> 'DirectoryManager':
         task_name, task_id = self._task_dirname
-        return DirectoryManager(base, self._output_dir, task_name, task_id)
+        output_dir = output_dir if output_dir else self._output_dir
+        base = base if base else self._base
+        return DirectoryManager(base, output_dir, task_name, task_id)
 
 
 class GCAPI:
@@ -124,6 +146,7 @@ class Settings:
         self.archive_dir = settings_dir('archive_dir')
         self.dm = DirectoryManager(Path('.'), settings_dir('out_dir'), settings['task_name'], settings['task_id'])
         self.gc = GCAPI(settings['gc_slug'], settings['gc_api'])
+        self.trainer = settings['inference_trainer']
 
         self.run_prep = settings.get('run_prep', [])
 
@@ -183,7 +206,11 @@ class Settings:
                         "type": "string",
                         "enum": ["dcm", "dcm2mha", "upload", "annotate", "mha2nnunet"]
                     }
+                },
+                "inference_trainer": {
+                    "description": "which trainer to use during inference",
+                    "type": "string",
                 }
             },
-            "required": ["out_dir", "archive_dir", "gc_slug", "gc_api", "task_name", "task_id"]
+            "required": ["out_dir", "archive_dir", "gc_slug", "gc_api", "task_name", "task_id", "inference_trainer"]
         }

@@ -7,7 +7,9 @@ import intervention.segment
 from intervention.utils import Settings
 
 
-def test_diagnose():
+def test_inference():
+    assert Path('tests/output/annotations').exists(), "run test_prep/test_annotations first"
+
     predict_dir = Path('tests/output/predict')
     predict_dir.mkdir(exist_ok=True, parents=True)
 
@@ -16,4 +18,4 @@ def test_diagnose():
 
     settings = Settings('segment', Path('tests/input/settings.json'))
     setattr(settings.dm, 'output', Path('tests/input'))
-    intervention.segment.predict(settings)
+    intervention.segment.inference(settings)

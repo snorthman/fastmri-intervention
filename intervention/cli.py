@@ -20,8 +20,8 @@ def prep(settings: Path):
     intervention.prep.prep(Settings('prep', settings))
 
 
-@cli.command(name='segment')
+@cli.command(name='inference')
 @click.option('-s', '--settings', type=click.Path(resolve_path=True, path_type=Path),
               prompt='Enter path/to/settings.json', default='.', help="Path to json settings file")
 def segment(settings: Path):
-    intervention.segment.predict(Settings('segment', settings))
+    intervention.segment.inference(Settings('inference', settings))
