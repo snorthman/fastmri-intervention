@@ -54,7 +54,7 @@ def nnUNet_predict(results_dir: Path, input_dir: Path, output_dir: Path, task: s
 
     try:
         subprocess.check_call(cmd)
-    finally:
+    except:
         print(' '.join(cmd))
 
 
@@ -71,7 +71,7 @@ def inference(settings: Settings):
         if path.is_dir():
             for file in path.iterdir():
                 if file.suffix == '.dcm':
-                    pid, sid = tuple(path.name.split('_'))
+                    pid, sid = tuple(path.name.split('_')[:2])
                     dcm2mha_archive.append({
                         'patient_id': pid,
                         'study_id': sid,
@@ -94,7 +94,7 @@ def inference(settings: Settings):
     for directory in [settings.dm.predict] + list(inference_dm.mha.iterdir()):
         for path in directory.iterdir():
             if path.suffix == '.mha':
-                pid, sid, _ = tuple(path.name.split('_', maxsplit=2))
+                pid, sid, _ = tuple(path.name.split('_')[:2])
                 pid_dir = inference_dm.mha / pid
                 pid_dir.mkdir(exist_ok=True)
                 mha = pid_dir / path.name
