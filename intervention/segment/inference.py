@@ -186,7 +186,6 @@ class Prediction:
         for i, (img, title) in enumerate([(image, 'Scan'), (prediction, 'Prediction'), (label, 'Annotation')]):
             axes[row, i].imshow(img, interpolation=None, cmap='gray')
             axes[row, i].set_title(title)
-            axes[row, i].set_subtitle(title)
 
 
 def plot(inference_dir: Path):
@@ -207,7 +206,6 @@ def plot(inference_dir: Path):
             prediction.set_axes(axes, i)
         except Exception as e:
             print(str(e))
-            pass
 
     plt.setp([a.get_yticklabels() for a in axes[:, 1:].flatten()], visible=False)
     f.subplots_adjust(hspace=0.3)
