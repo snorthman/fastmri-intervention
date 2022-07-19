@@ -16,6 +16,18 @@ def test_inference():
     shutil.rmtree(predict_dir)
     shutil.copytree('tests/input/predict', predict_dir)
 
-    settings = Settings('segment', Path('tests/input/settings.json'))
+    settings = Settings('inference', Path('tests/input/settings.json'))
     setattr(settings.dm, 'output', Path('tests/input'))
     intervention.segment.inference(settings)
+
+
+def test_plot():
+    inference_dir = Path('tests/output/predict_results')
+    inference_dir.mkdir(exist_ok=True, parents=True)
+
+    shutil.rmtree(inference_dir)
+    shutil.copytree('tests/input/predict_results', inference_dir)
+
+    intervention.segment.plot(inference_dir)
+
+    assert (inference_dir / f'{inference_dir.name}.png').exists()

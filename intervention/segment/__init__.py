@@ -1,1 +1,1 @@
-from intervention.segment.inference import inference
+from intervention.segment.inference import inference, plot

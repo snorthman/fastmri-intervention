@@ -4,12 +4,15 @@ from typing import List
 from pathlib import Path
 
 from picai_prep import MHA2nnUNetConverter
+import SimpleITK as sitk
+import matplotlib.pyplot as plt
+import numpy as np
 
 from intervention.utils import Settings, now, dataset_json
 from intervention.prep.convert import dcm2mha
 
 
-def _nnUNet_predict(results_dir: Path, input_dir: Path, output_dir: Path, task: str, trainer: str, folds: List = None,
+def nnUNet_predict(results_dir: Path, input_dir: Path, output_dir: Path, task: str, trainer: str, folds: List = None,
                     network: str = "3d_fullres", checkpoint: str = "model_final_checkpoint",
                     store_probability_maps: bool = True, disable_augmentation: bool = False,
                     disable_patch_overlap: bool = False):
@@ -56,10 +59,7 @@ def _nnUNet_predict(results_dir: Path, input_dir: Path, output_dir: Path, task: 
 
 
 def inference(settings: Settings):
-    s = settings.summary()
-    logging.debug(s)
-    # click.confirm(s, abort=True)
-
+    print(settings.summary())
     # convert files found in /predict to nii.gz
 
     inference_dm = settings.dm.refactor(output_dir=settings.dm.predict / f'inference_{now()}')
@@ -137,6 +137,7 @@ def inference(settings: Settings):
 
     # clean up
     nnunet_dir = inference_dm.nnunet / inference_dm.task_dirname
+    (nnunet_dir / 'labels').mkdir(exist_ok=True)
     for tr in [nnunet_dir / 'images', nnunet_dir / 'labels']:
         shutil.move(tr, inference_dm.output)
 
@@ -144,9 +145,77 @@ def inference(settings: Settings):
     shutil.rmtree(inference_dm.mha)
     shutil.rmtree(inference_dm.nnunet)
 
-    _nnUNet_predict(settings.dm.output / 'results', inference_dm.output / 'images', inference_dm.output, settings.dm.task_dirname,
+    nnUNet_predict(settings.dm.output / 'results', inference_dm.output / 'images', inference_dm.output, settings.dm.task_dirname,
                     checkpoint='model_best', trainer=settings.trainer)
 
-    print('done ')
+    print('Inference complete.')
 
 
+class Prediction:
+    def __init__(self, path: Path, image_dir: Path, label_dir: Path):
+        self.prediction = path
+        name = path.name.split('.')[0]
+        self.image = self._find(image_dir, name)
+        self.label = self._find(label_dir, name)
+
+    @staticmethod
+    def _find(in_dir: Path, name: str):
+        for item in in_dir.iterdir():
+            if item.name.startswith(name):
+                return item
+
+    @staticmethod
+    def _read_image(path: Path):
+        if not path:
+            return np.array([0.5])
+        img = sitk.ReadImage(path.as_posix())
+        img_nda = sitk.GetArrayViewFromImage(img)
+        img_nda = img_nda[img_nda.shape[0] // 2, :, :]
+        img_max = img_nda.max()
+        return img_nda / img_max if img_max > 0 else img_nda
+
+    def set_axes(self, axes: np.ndarray, row: int):
+        # image, image with predict, image with annotation (optional)
+
+        image = self._read_image(self.image)
+        prediction = self._read_image(self.prediction)
+        prediction = np.where(prediction > 0, prediction, image)
+        label = self._read_image(self.label)
+        label = np.where(label > 0, label, image)
+
+        for i, (img, title) in enumerate([(image, 'Scan'), (prediction, 'Prediction'), (label, 'Annotation')]):
+            axes[row, i].imshow(img, interpolation=None, cmap='gray')
+            axes[row, i].set_title(title)
+            axes[row, i].set_subtitle(title)
+
+
+def plot(inference_dir: Path):
+    if not inference_dir.is_dir():
+        raise NotADirectoryError()
+
+    predictions = []
+    for path in inference_dir.iterdir():
+        if path.name.endswith('.nii.gz'):
+            predictions.append(Prediction(path, inference_dir / 'images', inference_dir / 'labels'))
+
+    rows = len(predictions)
+    f, axes = plt.subplots(rows, 3)
+    if axes.ndim == 1:
+        axes = axes.reshape(rows, 3)
+    for i, prediction in enumerate(predictions):
+        try:
+            prediction.set_axes(axes, i)
+        except Exception as e:
+            print(str(e))
+            pass
+
+    plt.setp([a.get_yticklabels() for a in axes[:, 1:].flatten()], visible=False)
+    f.subplots_adjust(hspace=0.3)
+
+    plt.savefig(inference_dir / f'{inference_dir.name}.png', dpi=180)
+    plt.show()
+
+
+if __name__ == '__main__':
+    predict_dir = Path('tests/input/predict_results')
+    plot(predict_dir)
