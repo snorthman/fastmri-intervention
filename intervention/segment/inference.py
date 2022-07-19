@@ -58,6 +58,13 @@ def nnUNet_predict(results_dir: Path, input_dir: Path, output_dir: Path, task: s
         print(' '.join(cmd))
 
 
+def get_pid_sid(file: Path):
+    img = sitk.ReadImage(file.as_posix())
+    pid = img.GetMetaData('0010|0020').strip()
+    sid = img.GetMetaData('0020|000d').strip().split('.')[-1]
+    return pid, sid
+
+
 def inference(settings: Settings):
     print(settings.summary())
     # convert files found in /predict to nii.gz
@@ -71,9 +78,7 @@ def inference(settings: Settings):
         if path.is_dir():
             for file in path.iterdir():
                 if file.suffix == '.dcm':
-                    img = sitk.ReadImage(file.as_posix())
-                    pid = img.GetMetaData('0010|0020').strip()
-                    sid = img.GetMetaData('0020|0010').strip()
+                    pid, sid = get_pid_sid(file)
                     dcm2mha_archive.append({
                         'patient_id': pid,
                         'study_id': sid,
@@ -96,7 +101,7 @@ def inference(settings: Settings):
     for directory in [settings.dm.predict] + list(inference_dm.mha.iterdir()):
         for path in directory.iterdir():
             if path.suffix == '.mha':
-                pid, sid = tuple(path.name.split('_')[:2])
+                pid, sid = get_pid_sid(path)
                 pid_dir = inference_dm.mha / pid
                 pid_dir.mkdir(exist_ok=True)
                 mha = pid_dir / path.name
