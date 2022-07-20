@@ -177,7 +177,7 @@ class Prediction:
     @staticmethod
     def _read_image(path: Path):
         if not path:
-            return np.array([0.5])
+            return np.array([1])
 
         img = sitk.ReadImage(path.as_posix())
         img_nda = sitk.GetArrayViewFromImage(img)
@@ -185,7 +185,7 @@ class Prediction:
         img_max = img_nda.max()
         return img_nda / img_max if img_max > 0 else img_nda
 
-    def set_axes(self, axes: np.ndarray, row: int):
+    def set_axes(self, axes: np.ndarray):
         # image, image with predict, image with annotation (optional)
 
         image = self._read_image(self.image)
@@ -194,10 +194,9 @@ class Prediction:
         label = self._read_image(self.label)
         label = np.where(label > 0, label, image)
 
-        for i, (img, title) in enumerate([(image, 'Scan'), (prediction, 'Prediction'), (label, 'Annotation')]):
-            axes[row, i].imshow(img, interpolation=None, cmap='gray')
-            if i == 1:
-                axes[row, i].set_title(self.name)
+        for i, (img, title) in enumerate([(image, 'scan'), (prediction, 'prediction'), (label, 'annotation')]):
+            axes[0, i].imshow(img, interpolation=None, cmap='gray')
+            axes[0, i].set_title(title)
 
 
 def plot(inference_dir: Path):
@@ -209,29 +208,20 @@ def plot(inference_dir: Path):
         if path.name.endswith('.nii.gz'):
             predictions.append(Prediction(path, inference_dir / 'images', inference_dir / 'labels'))
 
-    rows = len(predictions)
-    if rows == 0:
+    if len(predictions) == 0:
         logging.error('no predictions found!')
         return
 
-    f, axes = plt.subplots(rows, 3)
-    sp = ' ' * 8
-    f.suptitle('   Scan   ' + sp + 'Prediction' + sp + 'Annotation', fontname='monospace')
-
-    if axes.ndim == 1:
-        axes = axes.reshape(rows, 3)
-    for i, prediction in enumerate(predictions):
+    for prediction in predictions:
         try:
-            prediction.set_axes(axes, i)
+            f, axes = plt.subplots(1, 3)
+            axes = axes.reshape(1, 3)
+            prediction.set_axes(axes)
+            plt.setp([a.get_yticklabels() for a in axes[:, 1:].flatten()], visible=False)
+            plt.savefig(inference_dir / f'{inference_dir.name}_{prediction.name}.png', dpi=180)
         except Exception as e:
             logging.error(str(e))
             print(str(e))
-
-    plt.setp([a.get_yticklabels() for a in axes[:, 1:].flatten()], visible=False)
-    f.subplots_adjust(hspace=0.3)
-
-    plt.savefig(inference_dir / f'{inference_dir.name}.png', dpi=180)
-    plt.show()
 
 
 if __name__ == '__main__':
