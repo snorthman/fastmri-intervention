@@ -54,9 +54,10 @@ def nnUNet_predict(results_dir: Path, input_dir: Path, output_dir: Path, task: s
 
     try:
         subprocess.check_call(cmd)
-    except:
+    except Exception as e:
         print(' '.join(cmd))
         logging.info(' '.join(cmd))
+        logging.info(str(e))
 
 
 def get_pid_sid(file: Path):
@@ -157,7 +158,7 @@ def inference(settings: Settings):
     nnUNet_predict(settings.dm.output / 'results', inference_dm.output / 'images', inference_dm.output, settings.dm.task_dirname,
                     checkpoint='model_best', trainer=settings.trainer)
 
-    print('Inference complete.')
+    return inference_dm.output
 
 
 class Prediction:
