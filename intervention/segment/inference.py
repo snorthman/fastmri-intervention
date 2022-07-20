@@ -56,6 +56,7 @@ def nnUNet_predict(results_dir: Path, input_dir: Path, output_dir: Path, task: s
         subprocess.check_call(cmd)
     except:
         print(' '.join(cmd))
+        logging.info(' '.join(cmd))
 
 
 def get_pid_sid(file: Path):
@@ -67,6 +68,7 @@ def get_pid_sid(file: Path):
 
 def inference(settings: Settings):
     print(settings.summary())
+    logging.info(settings.summary())
     # convert files found in /predict to nii.gz
 
     inference_dm = settings.dm.refactor(output_dir=settings.dm.predict / f'inference_{now()}')
@@ -161,9 +163,9 @@ def inference(settings: Settings):
 class Prediction:
     def __init__(self, path: Path, image_dir: Path, label_dir: Path):
         self.prediction = path
-        name = path.name.split('.')[0]
-        self.image = self._find(image_dir, name)
-        self.label = self._find(label_dir, name)
+        self.name = path.name.split('.')[0]
+        self.image = self._find(image_dir, self.name)
+        self.label = self._find(label_dir, self.name)
 
     @staticmethod
     def _find(in_dir: Path, name: str):
@@ -192,7 +194,8 @@ class Prediction:
 
         for i, (img, title) in enumerate([(image, 'Scan'), (prediction, 'Prediction'), (label, 'Annotation')]):
             axes[row, i].imshow(img, interpolation=None, cmap='gray')
-            axes[row, i].set_title(title)
+            if i == 1:
+                axes[row, i].set_title(self.name)
 
 
 def plot(inference_dir: Path):
@@ -205,13 +208,21 @@ def plot(inference_dir: Path):
             predictions.append(Prediction(path, inference_dir / 'images', inference_dir / 'labels'))
 
     rows = len(predictions)
+    if rows == 0:
+        logging.error('no predictions found!')
+        return
+
     f, axes = plt.subplots(rows, 3)
+    sp = ' ' * 8
+    f.suptitle('   Scan   ' + sp + 'Prediction' + sp + 'Annotation', fontname='monospace')
+
     if axes.ndim == 1:
         axes = axes.reshape(rows, 3)
     for i, prediction in enumerate(predictions):
         try:
             prediction.set_axes(axes, i)
         except Exception as e:
+            logging.error(str(e))
             print(str(e))
 
     plt.setp([a.get_yticklabels() for a in axes[:, 1:].flatten()], visible=False)
