@@ -166,9 +166,10 @@ class Prediction:
         self.name = path.name.split('.')[0]
         self.image = self._find(image_dir, self.name)
         self.label = self._find(label_dir, self.name)
+        logging.info(f'path: {path}, image: {self.image}, label: {self.label}')
 
     @staticmethod
-    def _find(in_dir: Path, name: str):
+    def _find(in_dir: Path, name: str) -> Path:
         for item in in_dir.iterdir():
             if item.name.startswith(name):
                 return item
@@ -177,6 +178,7 @@ class Prediction:
     def _read_image(path: Path):
         if not path:
             return np.array([0.5])
+
         img = sitk.ReadImage(path.as_posix())
         img_nda = sitk.GetArrayViewFromImage(img)
         img_nda = img_nda[img_nda.shape[0] // 2, :, :]
