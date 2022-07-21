@@ -219,7 +219,9 @@ def plot(inference_dir: Path):
             axes = axes.reshape(1, 3)
             prediction.set_axes(axes)
             plt.setp([a.get_yticklabels() for a in axes[:, 1:].flatten()], visible=False)
-            plt.savefig(inference_dir / f'{inference_dir.name}_{prediction.name}.png', dpi=180)
+            plt.suptitle(prediction.name)
+            plt.savefig(inference_dir / f'{inference_dir.name}_{prediction.name}.png',
+                        dpi=180, transparent=True, bbox_inches='tight', pad_inches=0)
         except Exception as e:
             logging.error(str(e))
             print(str(e))
@@ -228,3 +230,4 @@ def plot(inference_dir: Path):
 if __name__ == '__main__':
     predict_dir = Path('tests/input/predict_results')
     plot(predict_dir)
+
