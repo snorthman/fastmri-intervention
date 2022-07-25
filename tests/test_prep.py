@@ -3,7 +3,6 @@ from pathlib import Path
 
 import pytest
 
-import intervention.prep.prep
 import intervention.prep.convert as convert
 import intervention.prep.annotate as annotate
 from intervention.utils import DirectoryManager, GCAPI, Settings
@@ -95,8 +94,3 @@ def test_mha2nnunet(inputs):
     for niigz in ['10880_182386710290888504267667945338785981449_5.nii.gz', '10880_244375702689236279917785509476093985322_1.nii.gz']:
         assert any([assert_dir(dm.nnunet / dm.task_dirname / t, niigz) for t in ['labelsTr', 'labelsTs']])
 
-
-def test_prep():
-    remake_dir(Path('tests/output'))
-
-    intervention.prep.prep(Settings('test', Path('tests/input/settings.json')))

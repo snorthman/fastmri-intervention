@@ -46,6 +46,7 @@ class DirectoryManager:
         self.nnunet_split_json = self.nnunet / 'nnunet_split.json'
         self.nnunet_train_json = self.nnunet / f'mha2nnunet_train_settings.json'
         self.nnunet_test_json = self.nnunet / f'mha2nnunet_test_settings.json'
+        self.results = self.output / 'results'
         self.predict = self.output / 'predict'
 
         if not 500 <= task_id < 1000:
@@ -123,13 +124,13 @@ class GCAPI:
 
 
 class Settings:
-    def __init__(self, name: str, json_path: Path):
+    def __init__(self, json_path: Path):
         with open(json_path) as f:
             settings = json.load(f)
         self.json = settings
 
         n = datetime.now().strftime("%Y%m%d_%H%M%S")
-        logging.basicConfig(filename=f'intervention_{name}_{n}.log',
+        logging.basicConfig(filename=f'fastmri_intervention_{n}.log',
                             level=logging.INFO)
 
         jsonschema.validate(settings, Settings._schema(), jsonschema.Draft7Validator)
@@ -195,16 +196,16 @@ class Settings:
                     "minimum": 500,
                     "maximum": 999
                 },
-                "run_prep": {
-                    "description": "select tasks to run, order is non-configurable",
-                    "type": "array",
-                    "minContains": 0,
-                    "uniqueItems": True,
-                    "contains": {
-                        "type": "string",
-                        "enum": ["dcm", "dcm2mha", "upload", "annotate", "mha2nnunet"]
-                    }
-                },
+                # "run_prep": {
+                #     "description": "select tasks to run, order is non-configurable",
+                #     "type": "array",
+                #     "minContains": 0,
+                #     "uniqueItems": True,
+                #     "contains": {
+                #         "type": "string",
+                #         "enum": ["dcm", "dcm2mha", "upload", "annotate", "mha2nnunet"]
+                #     }
+                # },
                 "inference_trainer": {
                     "description": "which trainer to use during inference",
                     "type": "string",

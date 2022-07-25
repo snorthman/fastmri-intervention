@@ -16,7 +16,7 @@ def test_inference():
     shutil.rmtree(predict_dir)
     shutil.copytree('tests/input/predict', predict_dir)
 
-    settings = Settings('inference', Path('tests/input/settings.json'))
+    settings = Settings(Path('tests/input/settings.json'))
     setattr(settings.dm, 'output', Path('tests/input'))
     intervention.segment.inference(settings)
 

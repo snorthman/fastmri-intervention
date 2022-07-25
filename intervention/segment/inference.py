@@ -8,7 +8,7 @@ import SimpleITK as sitk
 import matplotlib.pyplot as plt
 import numpy as np
 
-from intervention.utils import Settings, now, dataset_json
+from intervention.utils import Settings, now, dataset_json, DirectoryManager
 from intervention.prep.convert import dcm2mha
 
 
@@ -68,8 +68,6 @@ def get_pid_sid(file: Path):
 
 
 def inference(settings: Settings):
-    print(settings.summary())
-    logging.info(settings.summary())
     # convert files found in /predict to nii.gz
 
     inference_dm = settings.dm.refactor(output_dir=settings.dm.predict / f'inference_{now()}')
@@ -200,34 +198,29 @@ class Prediction:
             axes[0, i].set_title(title)
 
 
-def plot(inference_dir: Path):
-    if not inference_dir.is_dir():
-        raise NotADirectoryError()
+def plot(dm: DirectoryManager):
+    for d in dm.predict.iterdir():
+        if d.is_dir() and d.name.startswith('inference_'):
+            inference_dir = d
 
-    predictions = []
-    for path in inference_dir.iterdir():
-        if path.name.endswith('.nii.gz'):
-            predictions.append(Prediction(path, inference_dir / 'images', inference_dir / 'labels'))
+            predictions = []
+            for path in inference_dir.iterdir():
+                if path.name.endswith('.nii.gz'):
+                    predictions.append(Prediction(path, inference_dir / 'images', inference_dir / 'labels'))
 
-    if len(predictions) == 0:
-        logging.error('no predictions found!')
-        return
+            if len(predictions) == 0:
+                logging.error('no predictions found!')
+                return
 
-    for prediction in predictions:
-        try:
-            f, axes = plt.subplots(1, 3)
-            axes = axes.reshape(1, 3)
-            prediction.set_axes(axes)
-            plt.setp([a.get_yticklabels() for a in axes[:, 1:].flatten()], visible=False)
-            plt.suptitle(prediction.name)
-            plt.savefig(inference_dir / f'{inference_dir.name}_{prediction.name}.png',
-                        dpi=180, transparent=True, bbox_inches='tight', pad_inches=0)
-        except Exception as e:
-            logging.error(str(e))
-            print(str(e))
-
-
-if __name__ == '__main__':
-    predict_dir = Path('tests/input/predict_results')
-    plot(predict_dir)
-
+            for prediction in predictions:
+                try:
+                    f, axes = plt.subplots(1, 3)
+                    axes = axes.reshape(1, 3)
+                    prediction.set_axes(axes)
+                    plt.setp([a.get_yticklabels() for a in axes[:, 1:].flatten()], visible=False)
+                    plt.suptitle(prediction.name)
+                    plt.savefig(inference_dir / f'{inference_dir.name}_{prediction.name}.png',
+                                dpi=180, transparent=True, bbox_inches='tight', pad_inches=0)
+                except Exception as e:
+                    logging.error(str(e))
+                    print(str(e))
