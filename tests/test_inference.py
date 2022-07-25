@@ -21,13 +21,13 @@ def test_inference():
     intervention.segment.inference(settings)
 
 
-def test_plot():
-    inference_dir = Path('tests/output/predict_results')
-    inference_dir.mkdir(exist_ok=True, parents=True)
-
-    shutil.rmtree(inference_dir)
-    shutil.copytree('tests/input/predict_results', inference_dir)
-
-    intervention.segment.plot(inference_dir)
-
-    assert (inference_dir / f'{inference_dir.name}.png').exists()
+# def test_plot():
+#     inference_dir = Path('tests/output/predict_results')
+#     inference_dir.mkdir(exist_ok=True, parents=True)
+#
+#     shutil.rmtree(inference_dir)
+#     shutil.copytree('tests/input/predict_results', inference_dir)
+#
+#     intervention.segment.plot(dm)
+#
+#     assert (inference_dir / f'{inference_dir.name}.png').exists()
