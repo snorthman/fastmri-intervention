@@ -146,7 +146,7 @@ class Settings:
         self.archive_dir = settings_dir('archive_dir')
         self.dm = DirectoryManager(Path('.'), settings_dir('out_dir'), settings['task_name'], settings['task_id'])
         self.gc = GCAPI(settings['gc_slug'], settings['gc_api'])
-        self.run_prep = settings.get('run_prep', [])
+        self.test_percentage = settings.get('test_percentage', 1/6)
         self.trainer = settings.get('inference_trainer', None)
 
     def summary(self):
@@ -185,6 +185,12 @@ class Settings:
                     "type": "string",
                     "minLength": 64,
                     "maxLength": 64
+                },
+                "test_percentage": {
+                    "description": "percentage of archive to put into imagesTs",
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
                 },
                 "task_name": {
                     "description": "for nnUnet",

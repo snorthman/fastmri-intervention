@@ -55,7 +55,7 @@ def cli(settings: Path):
                     lambda: write_annotations(dm, gc)))
     actions.append(('mha2nnunet', f'convert all MHA + annotations in {dm.mha} and {dm.annotations} to nnUNet',
                     f'{dm.nnunet}\\*',
-                    lambda: mha2nnunet(dm)))
+                    lambda: mha2nnunet(dm, s.test_percentage)))
     actions.append(('inference', f'using all DICOM and MHA in {dm.predict} using {dm.task_dirname}\\{s.trainer} in {dm.results}',
                     f'{dm.predict}\\inference_*\\*',
                     lambda: inference(s)))
@@ -90,8 +90,7 @@ def cli(settings: Path):
             logging.info(f"Program started at {start}")
 
             for func in run:
-                print('running')
-                # func()
+                func()
 
             end = datetime.now()
             logging.info(f"Program end at {end}\n\truntime {end - start}")
