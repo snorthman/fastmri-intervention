@@ -125,8 +125,9 @@ class GCAPI:
 
 
 class Command:
-    def __init__(self, name: str, settings: dict):
+    def __init__(self, name: str, summary: str, settings: dict):
         self.name = name
+        self.summary = summary
         self._settings = settings
         task_name = settings.get('task_name', None)
         task_id = settings.get('task_id', 500)
@@ -140,6 +141,7 @@ class Command:
         self.archive_dir = self.validate_dir(settings.get('archive_dir', None))
 
         self.trainer = settings.get('trainer', None)
+        self.test_percentage = settings.get('test_percentage', 1 / 6)
 
     def __str__(self):
         return self.name
@@ -177,10 +179,21 @@ class Settings:
         self.commands = []
         for cmd in settings:
             name = cmd.pop('cmd')
-            properties = schemas[name]['properties']
+            properties: dict = schemas[name]['properties']
             schemas[name]['required'] = list(properties.keys())
             jsonschema.validate(cmd, schemas[name], jsonschema.Draft7Validator)
-            self.commands.append(Command(name, cmd))
+
+            summary = [schemas[name]['description']]
+            for key, val in properties.items():
+                desc = val['description']
+                summary.append(f'.\t{key}: {desc}\n.\t> {cmd[key]}')
+
+            self.commands.append(Command(name, '\n'.join(summary), cmd))
+
+        logging.info(self.summary())
+
+    def summary(self) -> str:
+        return '\n\n'.join([f'({str(i)}) {c.name}: {c.summary}' for i, c in enumerate(self.commands)])
 
     @staticmethod
     def _schema():
@@ -224,6 +237,12 @@ class Settings:
             "description": "model trainer name to inference with",
             "type": "string"
         }
+        test_percentage = {
+            "description": "mha files to seperate as test set",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+        }
 
         def object_schema(description: str, **properties) -> dict:
             return {
@@ -237,65 +256,8 @@ class Settings:
         schemas['dcm2mha'] = object_schema("convert dcm2mha", out_dir=out_dir, archive_dir=archive_dir)
         schemas['upload'] = object_schema("upload MHA to GC", gc_slug=gc_slug, gc_api=gc_api)
         schemas['annotate'] = object_schema("download from GC, then annotate", out_dir=out_dir, gc_slug=gc_slug, gc_api=gc_api)
-        schemas['mha2nnunet'] = object_schema("convert dcm2mha", out_dir=out_dir)
+        schemas['mha2nnunet'] = object_schema("convert dcm2mha", out_dir=out_dir, test_percentage=test_percentage)
         schemas['inference'] = object_schema("inference using trained model", out_dir=out_dir, trainer=trainer)
         schemas['plot'] = object_schema("plot all inferenced directories", out_dir=out_dir)
 
         return base, schemas
-
-    #
-    # @staticmethod
-    # def _schema():
-    #     return {
-    #         "$schema": "http://json-schema.org/draft-07/schema#",
-    #         "type": "array",
-    #         "items": {
-    #             "type": "object"
-    #         }
-    #         "type": "object",
-    #         "properties": {
-    #             "out_dir": {
-    #                 "description": "where all output is sent",
-    #                 "type": "string"
-    #             },
-    #             "archive_dir": {
-    #                 "description": "where all dicom data is",
-    #                 "type": "string"
-    #             },
-    #             "gc_slug": {
-    #                 "description": "Grand Challenge reader study slug",
-    #                 "type": "string"
-    #             },
-    #             "gc_api": {
-    #                 "description": "Grand Challenge API key",
-    #                 "type": "string",
-    #                 "minLength": 64,
-    #                 "maxLength": 64
-    #             },
-    #             "task_name": {
-    #                 "description": "for nnUnet",
-    #                 "type": "string"
-    #             },
-    #             "task_id": {
-    #                 "description": "for nnUnet, between 500 and 999",
-    #                 "type": "integer",
-    #                 "minimum": 500,
-    #                 "maximum": 999
-    #             },
-    #             # "run_prep": {
-    #             #     "description": "select tasks to run, order is non-configurable",
-    #             #     "type": "array",
-    #             #     "minContains": 0,
-    #             #     "uniqueItems": True,
-    #             #     "contains": {
-    #             #         "type": "string",
-    #             #         "enum": ["dcm", "dcm2mha", "upload", "annotate", "mha2nnunet"]
-    #             #     }
-    #             # },
-    #             "inference_trainer": {
-    #                 "description": "which trainer to use during inference",
-    #                 "type": "string",
-    #             }
-    #         },
-    #         "required": ["out_dir", "archive_dir", "gc_slug", "gc_api", "task_name", "task_id"]
-    #     }

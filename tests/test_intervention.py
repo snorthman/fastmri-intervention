@@ -42,7 +42,7 @@ def inputs():
 
 
 def test_dcm(inputs):
-    s, = inputs
+    s: Settings = inputs
     c: Command = find_command(s, 'dcm')
 
     remake_dir(c.dm.dcm)
@@ -51,7 +51,7 @@ def test_dcm(inputs):
 
 
 def test_dcm2mha(inputs):
-    s, = inputs
+    s: Settings = inputs
     c: Command = find_command(s, 'dcm2mha')
 
     remake_dir(c.dm.mha)
@@ -70,7 +70,7 @@ def test_dcm2mha(inputs):
 
 
 def test_annotations(inputs):
-    s, = inputs
+    s: Settings = inputs
     c: Command = find_command(s, 'annotate')
 
     remake_dir(c.dm.annotations)
@@ -83,12 +83,12 @@ def test_annotations(inputs):
 
 
 def test_mha2nnunet(inputs):
-    s, = inputs
+    s: Settings = inputs
     c: Command = find_command(s, 'mha2nnunet')
 
     remake_dir(c.dm.nnunet)
 
-    convert.mha2nnunet(c.dm)
+    convert.mha2nnunet(c.dm, c.test_percentage)
 
     # specific to 10880
     assert assert_dir(c.dm.nnunet, 'mha2nnunet_train_settings.json', 'mha2nnunet_test_settings.json', 'nnunet_split.json')
@@ -99,16 +99,16 @@ def test_mha2nnunet(inputs):
     for niigz in ['10880_182386710290888504267667945338785981449_5.nii.gz', '10880_244375702689236279917785509476093985322_1.nii.gz']:
         assert any([assert_dir(c.dm.nnunet / c.dm.task_dirname / t, niigz) for t in ['labelsTr', 'labelsTs']])
 
-def test_inference():
-    s, = inputs
+def test_inference(inputs):
+    s: Settings = inputs
     c: Command = find_command(s, 'inference')
 
-    assert Path('tests/output/annotations').exists(), "run test_prep/test_annotations first"
+    assert Path('output/annotations').exists(), "run test_prep/test_annotations first"
 
     predict_dir = c.dm.predict
     predict_dir.mkdir(exist_ok=True, parents=True)
 
     shutil.rmtree(predict_dir)
-    shutil.copytree('tests/input/predict', predict_dir)
+    shutil.copytree('input/predict', predict_dir)
 
-    inference.inference(c)
+    inference.inference(c.dm, c.trainer)
