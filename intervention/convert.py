@@ -1,6 +1,6 @@
-import os, json, concurrent.futures, copy, shutil
+import os, json, concurrent.futures, copy, shutil, math
 from pathlib import Path
-from typing import Callable, Dict, Tuple
+from typing import Callable, Dict
 
 import click, picai_prep
 from tqdm import tqdm
@@ -63,8 +63,9 @@ def dcm2mha(dm: DirectoryManager, archive_dir: Path):
     ).convert()
 
 
-def generate_mha2nnunet_jsons(dm: DirectoryManager):
+def generate_mha2nnunet_jsons(dm: DirectoryManager, test_percentage: float):
     dm.nnunet.mkdir(exist_ok=True)
+    rng = np.random.default_rng()
 
     def walk_mha_archive_add_func(dirpath: Path, filename: str):
         patient_id = dirpath.parts[-1]
@@ -91,17 +92,20 @@ def generate_mha2nnunet_jsons(dm: DirectoryManager):
     for a in archives:
         archive.update(a)
     archive = list(archive)
+    rng.shuffle(archive)
+
+    split = max(0, min(len(archive) - 1, round(test_percentage * len(archive))))
+    test_set = archive[:split]
+    train_set = archive[split:]
 
     buckets = {}
-    for i, item in enumerate(archive):
+    for i, item in enumerate(train_set):
         pid, sid = item.patient_id, item.study_id.split('_')[0]
         buckets[pid] = buckets.get(pid, {})
         buckets[pid][sid] = buckets[pid].get(sid, [])
         buckets[pid][sid].append(i)
 
-    splits = [[] for _ in range(min(5 + 1, len(archive)))]
-    splits_n = len(splits)
-    rng = np.random.default_rng()
+    splits = [[] for _ in range(min(5, len(train_set)))]
     for pid in buckets.keys():
         for sid in buckets[pid].keys():
             # each item with same pid and sid in a bucket
@@ -112,7 +116,7 @@ def generate_mha2nnunet_jsons(dm: DirectoryManager):
                 S, = np.nonzero(splits_c == splits_c.min(initial=None))
                 rng.shuffle(S)
                 for s in S[:len(items)]:
-                    splits[s].append(archive[items.pop()])
+                    splits[s].append(train_set[items.pop()])
 
     preprocessing = {
         "matrix_size": [
@@ -128,9 +132,9 @@ def generate_mha2nnunet_jsons(dm: DirectoryManager):
     }
 
     nnunet_split = []
-    for S in range(splits_n - 1):
+    for S in range(len(splits)):
         train, val = [], []
-        for s, split in enumerate(splits[:splits_n - 1]):
+        for s, split in enumerate(splits):
             group = train if s != S else val
             for item in split:
                 group.append(f'{item.patient_id}_{item.study_id}')
@@ -143,20 +147,15 @@ def generate_mha2nnunet_jsons(dm: DirectoryManager):
                                "preprocessing": preprocessing,
                                "archive": list([a.to_dict() for a in A])}
 
-    train = []
-    [train.extend(s) for s in splits[:splits_n - 1]]
     with open(dm.nnunet_train_json, 'w') as f:
-        json.dump(dump_settings(train), f, indent=4)
-
-    test = []
-    test.extend(splits[-1])
+        json.dump(dump_settings([t for s in splits for t in s]), f, indent=4)
     with open(dm.nnunet_test_json, 'w') as f:
-        json.dump(dump_settings(test), f, indent=4)
+        json.dump(dump_settings(test_set), f, indent=4)
 
 
-def mha2nnunet(dm: DirectoryManager):
+def mha2nnunet(dm: DirectoryManager, test_percentage: float):
     if not dm.nnunet_train_json.exists() or not dm.nnunet_test_json.exists():
-        generate_mha2nnunet_jsons(dm)
+        generate_mha2nnunet_jsons(dm, test_percentage)
 
     train = dm.nnunet / 'train'
     test = dm.nnunet / 'test'

@@ -186,7 +186,6 @@ class Prediction:
 
     def set_axes(self, axes: np.ndarray):
         # image, image with predict, image with annotation (optional)
-
         image = self._read_image(self.image)
         prediction = self._read_image(self.prediction)
         prediction = np.where(prediction > 0, prediction, image)
@@ -219,7 +218,7 @@ def plot(dm: DirectoryManager):
                     prediction.set_axes(axes)
                     plt.setp([a.get_yticklabels() for a in axes[:, 1:].flatten()], visible=False)
                     plt.suptitle(prediction.name)
-                    plt.savefig(inference_dir / f'{inference_dir.name}_{prediction.name}.png',
+                    plt.savefig(inference_dir / f'plot_{prediction.name}.png',
                                 dpi=180, transparent=True, bbox_inches='tight', pad_inches=0)
                 except Exception as e:
                     logging.error(str(e))
