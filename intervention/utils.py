@@ -1,4 +1,4 @@
-import httpx, logging, json
+import httpx, logging, json, copy
 from pathlib import Path
 from datetime import datetime
 
@@ -48,6 +48,7 @@ class DirectoryManager:
         self.nnunet_test_json = self.nnunet / f'mha2nnunet_test_settings.json'
         self.results = self.output / 'results'
         self.predict = self.output / 'predict'
+
 
         if not 500 <= task_id < 1000:
             raise ValueError("id must be between 500 and 999")
@@ -123,93 +124,178 @@ class GCAPI:
         return self._cases
 
 
+class Command:
+    def __init__(self, name: str, settings: dict):
+        self.name = name
+        self._settings = settings
+        task_name = settings.get('task_name', None)
+        task_id = settings.get('task_id', 500)
+
+        self.dm = DirectoryManager(Path('.'), self.validate_dir(settings['out_dir']), task_name, task_id)
+        gc_slug = settings.get('gc_slug', None)
+        gc_api = settings.get('gc_api', None)
+        self.gc = None
+        if gc_slug and gc_api:
+            self.gc = GCAPI(gc_slug, gc_api)
+        self.archive_dir = self.validate_dir(settings.get('archive_dir', None))
+
+        self.trainer = settings.get('trainer', None)
+
+    def __str__(self):
+        return self.name
+
+    @staticmethod
+    def validate_dir(path: str):
+        if not path:
+            return
+        path = Path(path)
+        if not path.exists() or not path.is_dir():
+            raise NotADirectoryError(f'{path} does not exist or is not a directory')
+        return path
+
+
 class Settings:
     def __init__(self, json_path: Path):
         with open(json_path) as f:
             settings = json.load(f)
-        self.json = settings
+        self.json = copy.copy(settings)
 
         n = datetime.now().strftime("%Y%m%d_%H%M%S")
         logging.basicConfig(filename=f'fastmri_intervention_{n}.log',
                             level=logging.INFO)
 
-        jsonschema.validate(settings, Settings._schema(), jsonschema.Draft7Validator)
+        base, schemas = Settings._schema()
+        jsonschema.validate(settings, base, jsonschema.Draft7Validator)
 
-        def settings_dir(key: str):
-            if key not in settings:
-                return None
-            p = Path(settings[key])
-            if not p.exists() or not p.is_dir():
-                raise NotADirectoryError(f'{p} does not exist or is not a directory')
-            return p
+        props = {}
+        for i, cmd in enumerate(settings):
+            name = cmd['cmd']
+            jsonschema.validate(cmd, schemas[name], jsonschema.Draft7Validator)
+            props.update(cmd)
+            settings[i] = copy.copy(props)
 
-        self.archive_dir = settings_dir('archive_dir')
-        self.dm = DirectoryManager(Path('.'), settings_dir('out_dir'), settings['task_name'], settings['task_id'])
-        self.gc = GCAPI(settings['gc_slug'], settings['gc_api'])
-        self.run_prep = settings.get('run_prep', [])
-        self.trainer = settings.get('inference_trainer', None)
-
-    def summary(self):
-        txt = ['', '']
-        dirs = [self.archive_dir, self.dm.output, self.dm.dcm, self.dm.mha, self.dm.annotations, self.dm.nnunet, self.dm.predict]
-        settings = [self.dm.dcm_settings_json, self.dm.nnunet_train_json, self.dm.nnunet_test_json, self.dm.nnunet_split_json]
-        for P, i, b in [(dirs, 0, True), (settings, 1, False)]:
-            for p in filter(None, P):
-                txt[i] += str(p)
-                if p.exists() and p.is_dir() == b:
-                    txt[i] += ' <<EXISTS>>'
-                txt[i] += '\n'
-
-        return f"DIRECTORIES:\n{txt[0]}\nSETTINGS:\n{txt[1]}\nJSON:\n{self.json}"
+        self.commands = []
+        for cmd in settings:
+            name = cmd.pop('cmd')
+            properties = schemas[name]['properties']
+            schemas[name]['required'] = list(properties.keys())
+            jsonschema.validate(cmd, schemas[name], jsonschema.Draft7Validator)
+            self.commands.append(Command(name, cmd))
 
     @staticmethod
     def _schema():
-        return {
-            "$schema": "http://json-schema.org/draft-07/schema#",
-            "type": "object",
-            "properties": {
-                "out_dir": {
-                    "description": "where all output is sent",
-                    "type": "string"
-                },
-                "archive_dir": {
-                    "description": "where all dicom data is",
-                    "type": "string"
-                },
-                "gc_slug": {
-                    "description": "Grand Challenge reader study slug",
-                    "type": "string"
-                },
-                "gc_api": {
-                    "description": "Grand Challenge API key",
-                    "type": "string",
-                    "minLength": 64,
-                    "maxLength": 64
-                },
-                "task_name": {
-                    "description": "for nnUnet",
-                    "type": "string"
-                },
-                "task_id": {
-                    "description": "for nnUnet, between 500 and 999",
-                    "type": "integer",
-                    "minimum": 500,
-                    "maximum": 999
-                },
-                # "run_prep": {
-                #     "description": "select tasks to run, order is non-configurable",
-                #     "type": "array",
-                #     "minContains": 0,
-                #     "uniqueItems": True,
-                #     "contains": {
-                #         "type": "string",
-                #         "enum": ["dcm", "dcm2mha", "upload", "annotate", "mha2nnunet"]
-                #     }
-                # },
-                "inference_trainer": {
-                    "description": "which trainer to use during inference",
-                    "type": "string",
+        draft = "http://json-schema.org/draft-07/schema#"
+
+        base = {
+            "$schema": draft,
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "cmd": {
+                        "type": "string",
+                        "enum": ["dcm", "dcm2mha", "upload", "annotate", "mha2nnunet", "inference", "plot"]
+                    }
                 }
-            },
-            "required": ["out_dir", "archive_dir", "gc_slug", "gc_api", "task_name", "task_id"]
+            }
         }
+
+        schemas = {}
+
+        out_dir = {
+            "description": "where all output is sent",
+            "type": "string"
+        }
+        archive_dir = {
+            "description": "where all dicom data is",
+            "type": "string"
+        }
+        gc_slug = {
+            "description": "Grand Challenge reader study slug",
+            "type": "string"
+        }
+        gc_api = {
+            "description": "Grand Challenge API key",
+            "type": "string",
+            "minLength": 64,
+            "maxLength": 64
+        }
+        trainer = {
+            "description": "model trainer name to inference with",
+            "type": "string"
+        }
+
+        def object_schema(description: str, **properties) -> dict:
+            return {
+                "$schema": draft,
+                "type": "object",
+                "description": description,
+                "properties": properties
+            }
+
+        schemas['dcm'] = object_schema("generate a json settings file for the dcm2mha converter", out_dir=out_dir, archive_dir=archive_dir)
+        schemas['dcm2mha'] = object_schema("convert dcm2mha", out_dir=out_dir, archive_dir=archive_dir)
+        schemas['upload'] = object_schema("upload MHA to GC", gc_slug=gc_slug, gc_api=gc_api)
+        schemas['annotate'] = object_schema("download from GC, then annotate", out_dir=out_dir, gc_slug=gc_slug, gc_api=gc_api)
+        schemas['mha2nnunet'] = object_schema("convert dcm2mha", out_dir=out_dir)
+        schemas['inference'] = object_schema("inference using trained model", out_dir=out_dir, trainer=trainer)
+        schemas['plot'] = object_schema("plot all inferenced directories", out_dir=out_dir)
+
+        return base, schemas
+
+    #
+    # @staticmethod
+    # def _schema():
+    #     return {
+    #         "$schema": "http://json-schema.org/draft-07/schema#",
+    #         "type": "array",
+    #         "items": {
+    #             "type": "object"
+    #         }
+    #         "type": "object",
+    #         "properties": {
+    #             "out_dir": {
+    #                 "description": "where all output is sent",
+    #                 "type": "string"
+    #             },
+    #             "archive_dir": {
+    #                 "description": "where all dicom data is",
+    #                 "type": "string"
+    #             },
+    #             "gc_slug": {
+    #                 "description": "Grand Challenge reader study slug",
+    #                 "type": "string"
+    #             },
+    #             "gc_api": {
+    #                 "description": "Grand Challenge API key",
+    #                 "type": "string",
+    #                 "minLength": 64,
+    #                 "maxLength": 64
+    #             },
+    #             "task_name": {
+    #                 "description": "for nnUnet",
+    #                 "type": "string"
+    #             },
+    #             "task_id": {
+    #                 "description": "for nnUnet, between 500 and 999",
+    #                 "type": "integer",
+    #                 "minimum": 500,
+    #                 "maximum": 999
+    #             },
+    #             # "run_prep": {
+    #             #     "description": "select tasks to run, order is non-configurable",
+    #             #     "type": "array",
+    #             #     "minContains": 0,
+    #             #     "uniqueItems": True,
+    #             #     "contains": {
+    #             #         "type": "string",
+    #             #         "enum": ["dcm", "dcm2mha", "upload", "annotate", "mha2nnunet"]
+    #             #     }
+    #             # },
+    #             "inference_trainer": {
+    #                 "description": "which trainer to use during inference",
+    #                 "type": "string",
+    #             }
+    #         },
+    #         "required": ["out_dir", "archive_dir", "gc_slug", "gc_api", "task_name", "task_id"]
+    #     }

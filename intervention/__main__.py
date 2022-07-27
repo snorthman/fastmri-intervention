@@ -4,13 +4,11 @@ from datetime import datetime
 
 import click
 
-import intervention.segment.inference
-from intervention.utils import Settings
-from intervention.prep.convert import dcm2mha, generate_dcm2mha_json, mha2nnunet
-from intervention.prep.upload import upload_data, delete_all_data
-from intervention.prep.annotate import write_annotations
+from intervention.convert import dcm2mha, generate_dcm2mha_json, mha2nnunet
+from intervention.upload import upload_data, delete_all_data
+from intervention.annotate import write_annotations
 from intervention.utils import DirectoryManager, GCAPI, Settings
-from intervention.segment.inference import inference, plot
+from intervention.inference import inference, plot
 
 
 def upload(dm: DirectoryManager, gc: GCAPI):
@@ -58,7 +56,7 @@ def cli(settings: Path):
                     lambda: mha2nnunet(dm)))
     actions.append(('inference', f'using all DICOM and MHA in {dm.predict} using {dm.task_dirname}\\{s.trainer} in {dm.results}',
                     f'{dm.predict}\\inference_*\\*',
-                    lambda: inference(s)))
+                    lambda: inference(dm, s.trainer)))
     actions.append(('plot', f'generate plots in each inference directory ({dm.predict}\\inference_*)',
                     '',
                     lambda: plot(dm)))

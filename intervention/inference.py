@@ -8,8 +8,8 @@ import SimpleITK as sitk
 import matplotlib.pyplot as plt
 import numpy as np
 
-from intervention.utils import Settings, now, dataset_json, DirectoryManager
-from intervention.prep.convert import dcm2mha
+from intervention.utils import Command, now, dataset_json, DirectoryManager
+from intervention.convert import dcm2mha
 
 
 def nnUNet_predict(results_dir: Path, input_dir: Path, output_dir: Path, task: str, trainer: str, folds: List = None,
@@ -67,15 +67,15 @@ def get_pid_sid(file: Path):
     return pid, sid
 
 
-def inference(settings: Settings):
+def inference(dm: DirectoryManager, trainer: str):
     # convert files found in /predict to nii.gz
 
-    inference_dm = settings.dm.refactor(output_dir=settings.dm.predict / f'inference_{now()}')
+    inference_dm = dm.refactor(output_dir=dm.predict / f'inference_{now()}')
     inference_dm.output.mkdir(parents=True, exist_ok=False)
 
     # dcm2mha
     dcm2mha_archive = []
-    for path in settings.dm.predict.iterdir():
+    for path in dm.predict.iterdir():
         if path.is_dir():
             for file in path.iterdir():
                 if file.suffix == '.dcm':
@@ -94,12 +94,12 @@ def inference(settings: Settings):
     inference_dm.dcm.mkdir(exist_ok=True)
     with open(inference_dm.dcm / 'dcm2mha_settings.json', 'w') as f:
         json.dump(dcm2mha_settings, f, indent=4)
-    dcm2mha(inference_dm, settings.dm.predict)
+    dcm2mha(inference_dm, dm.predict)
 
     # mha2nnunet
     inference_dm.mha.mkdir(exist_ok=True)
     mha2nnunet_archive = []
-    for directory in [settings.dm.predict] + list(inference_dm.mha.iterdir()):
+    for directory in [dm.predict] + list(inference_dm.mha.iterdir()):
         for path in directory.iterdir():
             if path.suffix == '.mha':
                 pid, sid = get_pid_sid(path)
@@ -114,13 +114,13 @@ def inference(settings: Settings):
                     'study_id': sid,
                     'scan_paths': [path.absolute().as_posix()]
                 }
-                annotation = settings.dm.annotations / path.with_suffix('.nii.gz').name
+                annotation = dm.annotations / path.with_suffix('.nii.gz').name
                 if annotation.exists():
                     item['annotation_path'] = annotation.absolute().as_posix()
                 mha2nnunet_archive.append(item)
     mha2nnunet_settings = {
         "archive": mha2nnunet_archive,
-        "dataset_json": dataset_json(settings.dm.task_dirname),
+        "dataset_json": dataset_json(dm.task_dirname),
         "preprocessing": {
             "spacing": [
                 3.0,
@@ -153,8 +153,8 @@ def inference(settings: Settings):
     shutil.rmtree(inference_dm.mha)
     shutil.rmtree(inference_dm.nnunet)
 
-    nnUNet_predict(settings.dm.output / 'results', inference_dm.output / 'images', inference_dm.output, settings.dm.task_dirname,
-                    checkpoint='model_best', trainer=settings.trainer)
+    nnUNet_predict(dm.output / 'results', inference_dm.output / 'images', inference_dm.output, dm.task_dirname,
+                   checkpoint='model_best', trainer=trainer)
 
     return inference_dm.output
 
