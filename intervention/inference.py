@@ -8,8 +8,8 @@ import SimpleITK as sitk
 import matplotlib.pyplot as plt
 import numpy as np
 
-from intervention.utils import Command, now, dataset_json, DirectoryManager
-from intervention.convert import dcm2mha
+from intervention.utils import now, dataset_json, DirectoryManager
+from intervention.dcm2mha import dcm2mha
 
 
 def nnUNet_predict(results_dir: Path, input_dir: Path, output_dir: Path, task: str, trainer: str, folds: List = None,

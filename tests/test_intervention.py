@@ -11,13 +11,6 @@ import intervention.inference as inference
 from intervention.utils import Command, Settings
 
 
-def remake_dir(dir: Path) -> Path:
-    if dir.exists():
-        shutil.rmtree(dir)
-    dir.mkdir()
-    return dir
-
-
 def assert_dir(dir: Path, *contents):
     A = os.listdir(dir)
     for b in contents:
@@ -34,31 +27,30 @@ def find_command(s: Settings, name: str):
 @pytest.fixture(scope="module")
 def inputs():
     s = Settings(Path('input/settings.json'))
+    if s.base.exists():
+        shutil.rmtree(s.base)
+    s = Settings(Path('input/settings.json'))
 
     assert len(s.commands) > 0
-    assert all([c.dm.output == Path('output') for c in s.commands])
+    # assert all([c.dm.output == Path('output') for c in s.commands])
 
-    s.commands[0].dm.output.mkdir(parents=True, exist_ok=True)
+    # s.commands[0].dm.output.mkdir(parents=True, exist_ok=True)
 
     return s
 
 
 def test_dcm(inputs):
     s: Settings = inputs
-    c: Command = find_command(s, 'dcm')
+    cmd: Command = find_command(s, 'dcm')
 
-    remake_dir(c.dm.dcm)
-
-    dcm.generate_dcm2mha_json(c.dm, c.archive_dir)
+    dcm.generate_dcm2mha_json(cmd)
 
 
 def test_dcm2mha(inputs):
     s: Settings = inputs
-    c: Command = find_command(s, 'dcm2mha')
+    cmd: Command = find_command(s, 'dcm2mha')
 
-    remake_dir(c.dm.mha)
-
-    dcm2mha.dcm2mha(c.dm, c.archive_dir)
+    dcm2mha.dcm2mha(cmd)
 
     # specific to 10880
     assert assert_dir(c.dm.mha / '10880', '10880_182386710290888504267667945338785981449_needle_0.mha',
@@ -75,7 +67,7 @@ def test_annotations(inputs):
     s: Settings = inputs
     c: Command = find_command(s, 'annotate')
 
-    remake_dir(c.dm.annotations)
+    del_dir(c.dm.annotations)
     annotate.write_annotations(c.dm, c.gc)
 
     # specific to 10880
@@ -88,7 +80,7 @@ def test_mha2nnunet(inputs):
     s: Settings = inputs
     c: Command = find_command(s, 'mha2nnunet')
 
-    remake_dir(c.dm.nnunet)
+    del_dir(c.dm.nnunet)
 
     mha2nnunet.mha2nnunet(c.dm, c.test_percentage)
 

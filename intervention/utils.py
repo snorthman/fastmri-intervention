@@ -1,7 +1,7 @@
 import httpx, logging, json, copy, os
 from pathlib import Path
 from datetime import datetime
-from typing import Callable, Dict
+from typing import Callable, Dict, Tuple
 
 from box import Box
 import gcapi, jsonschema
@@ -136,23 +136,40 @@ class GCAPI:
 
 
 class Command:
-    def __init__(self, name: str, summary: str, settings: dict):
+    def __init__(self, name: str, summary: str, base_dir: Path, settings: dict):
         self.name = name
         self.summary = summary
         self._settings = settings
-        task_name = settings.get('task_name', None)
-        task_id = settings.get('task_id', 500)
+        self._base = base_dir
 
-        self.dm = DirectoryManager(Path('.'), self.validate_dir(settings['out_dir']), task_name, task_id)
-        gc_slug = settings.get('gc_slug', None)
-        gc_api = settings.get('gc_api', None)
+        # I/O
+        in_dir: str = settings.get('in_dir', None)
+        if in_dir:
+            self.in_dir: Path = Path(in_dir) if in_dir.startswith('/') else Path(base_dir / in_dir)
+        self.out_dir = base_dir / settings.get('out_dir', None)
+        self.out_dir.mkdir(exist_ok=True, parents=True)
+
+        # nnUNet
+        self.task_name: str = settings.get('task_name', None)
+        self.task_id: int = settings.get('task_id', 500)
+
+        # GC
+        gc_slug: str = settings.get('gc_slug', None)
+        gc_api: str = settings.get('gc_api', None)
         self.gc = None
         if gc_slug and gc_api:
             self.gc = GCAPI(gc_slug, gc_api)
-        self.archive_dir = self.validate_dir(settings.get('archive_dir', None))
 
-        self.trainer = settings.get('trainer', None)
-        self.test_percentage = settings.get('test_percentage', 1 / 6)
+        # other
+        self.trainer: str = settings.get('trainer', None)
+        self.test_percentage: float = settings.get('test_percentage', 1 / 6)
+
+    def assert_attributes(self, *attrs: str):
+        for attr in attrs:
+            if not self.__getattribute__(attr):
+                raise AttributeError(f'missing {attr}')
+            if attr == 'in_dir':
+                self.validate_dir(self.in_dir)
 
     def __str__(self):
         return self.name
@@ -171,24 +188,29 @@ class Settings:
     def __init__(self, json_path: Path):
         with open(json_path) as f:
             settings = json.load(f)
-        self.json = copy.copy(settings)
+        self.json = settings
 
         n = datetime.now().strftime("%Y%m%d_%H%M%S")
         logging.basicConfig(filename=f'fastmri_intervention_{n}.log',
                             level=logging.INFO)
 
-        base, schemas = Settings._schema()
-        jsonschema.validate(settings, base, jsonschema.Draft7Validator)
+        base_schema, schemas = Settings._schema()
+        jsonschema.validate(settings, base_schema, jsonschema.Draft7Validator)
+
+        self.base = Path(settings['base_dir'])
+        self.base.mkdir(exist_ok=True)
+
+        cmds = settings['commands']
 
         props = {}
-        for i, cmd in enumerate(settings):
+        for i, cmd in enumerate(cmds):
             name = cmd['cmd']
             jsonschema.validate(cmd, schemas[name], jsonschema.Draft7Validator)
             props.update(cmd)
-            settings[i] = copy.copy(props)
+            cmds[i] = copy.copy(props)
 
         self.commands = []
-        for cmd in settings:
+        for cmd in cmds:
             name = cmd.pop('cmd')
             properties: dict = schemas[name]['properties']
             schemas[name]['required'] = list(properties.keys())
@@ -199,7 +221,7 @@ class Settings:
                 desc = val['description']
                 summary.append(f'.\t{key}: {desc}\n.\t> {cmd[key]}')
 
-            self.commands.append(Command(name, '\n'.join(summary), cmd))
+            self.commands.append(Command(name, '\n'.join(summary), self.base, cmd))
 
         logging.info(self.summary())
 
@@ -209,16 +231,24 @@ class Settings:
     @staticmethod
     def _schema():
         draft = "http://json-schema.org/draft-07/schema#"
-
         base = {
             "$schema": draft,
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "cmd": {
-                        "type": "string",
-                        "enum": ["dcm", "dcm2mha", "upload", "annotate", "mha2nnunet", "inference", "plot"]
+            "type": "object",
+            "properties": {
+                "base_dir": {
+                    "description": "base directory",
+                    "type": "string"
+                },
+                "commands": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "cmd": {
+                                "type": "string",
+                                "enum": ["dcm", "dcm2mha", "upload", "annotate", "mha2nnunet", "inference", "plot"]
+                            }
+                        }
                     }
                 }
             }
@@ -227,11 +257,11 @@ class Settings:
         schemas = {}
 
         out_dir = {
-            "description": "where all output is sent",
+            "description": "where all output is sent, root is base_dir",
             "type": "string"
         }
-        archive_dir = {
-            "description": "where all dicom data is",
+        in_dir = {
+            "description": "where all input is found, root is base_dir unless it starts with /",
             "type": "string"
         }
         gc_slug = {
@@ -263,12 +293,12 @@ class Settings:
                 "properties": properties
             }
 
-        schemas['dcm'] = object_schema("generate a json settings file for the dcm2mha converter", out_dir=out_dir, archive_dir=archive_dir)
-        schemas['dcm2mha'] = object_schema("convert dcm2mha", out_dir=out_dir, archive_dir=archive_dir)
+        schemas['dcm'] = object_schema("generate a json settings file for the dcm2mha converter", in_dir=in_dir, out_dir=out_dir)
+        schemas['dcm2mha'] = object_schema("convert dcm2mha", in_dir=in_dir, out_dir=out_dir)
         schemas['upload'] = object_schema("upload MHA to GC", gc_slug=gc_slug, gc_api=gc_api)
         schemas['annotate'] = object_schema("download from GC, then annotate", out_dir=out_dir, gc_slug=gc_slug, gc_api=gc_api)
-        schemas['mha2nnunet'] = object_schema("convert dcm2mha", out_dir=out_dir, test_percentage=test_percentage)
-        schemas['inference'] = object_schema("inference using trained model", out_dir=out_dir, trainer=trainer)
-        schemas['plot'] = object_schema("plot all inferenced directories", out_dir=out_dir)
+        schemas['mha2nnunet'] = object_schema("convert dcm2mha", in_dir=in_dir, out_dir=out_dir, test_percentage=test_percentage)
+        schemas['inference'] = object_schema("inference using trained model", in_dir=in_dir, out_dir=out_dir, trainer=trainer)
+        schemas['plot'] = object_schema("plot all inferenced directories")
 
         return base, schemas
