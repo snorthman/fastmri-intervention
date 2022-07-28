@@ -8,7 +8,8 @@ import intervention.dcm2mha as dcm2mha
 import intervention.mha2nnunet as mha2nnunet
 import intervention.annotate as annotate
 import intervention.inference as inference
-from intervention.utils import Command, Settings
+from intervention.utils import CommandDCM, CommandPlot, CommandUpload, CommandAnnotate, CommandInference, \
+    CommandMHA2nnUNet, CommandDCM2MHA, Settings
 
 
 def assert_dir(dir: Path, *contents):
@@ -41,19 +42,20 @@ def inputs():
 
 def test_dcm(inputs):
     s: Settings = inputs
-    cmd: Command = find_command(s, 'dcm')
+    cmd: CommandDCM = find_command(s, 'dcm')
 
     dcm.generate_dcm2mha_json(cmd)
 
 
 def test_dcm2mha(inputs):
     s: Settings = inputs
-    cmd: Command = find_command(s, 'dcm2mha')
+    test_dcm(inputs)
+    cmd: CommandDCM2MHA = find_command(s, 'dcm2mha')
 
     dcm2mha.dcm2mha(cmd)
 
     # specific to 10880
-    assert assert_dir(c.dm.mha / '10880', '10880_182386710290888504267667945338785981449_needle_0.mha',
+    assert assert_dir(cmd.out_dir / '10880', '10880_182386710290888504267667945338785981449_needle_0.mha',
                '10880_182386710290888504267667945338785981449_needle_1.mha',
                '10880_182386710290888504267667945338785981449_needle_2.mha',
                '10880_182386710290888504267667945338785981449_needle_3.mha',
@@ -65,44 +67,41 @@ def test_dcm2mha(inputs):
 
 def test_annotations(inputs):
     s: Settings = inputs
-    c: Command = find_command(s, 'annotate')
+    cmd: CommandAnnotate = find_command(s, 'annotate')
 
-    del_dir(c.dm.annotations)
-    annotate.write_annotations(c.dm, c.gc)
+    annotate.write_annotations(cmd)
 
     # specific to 10880
-    assert assert_dir(c.dm.annotations,
+    assert assert_dir(cmd.out_dir,
                       '10880_244375702689236279917785509476093985322_needle_1.nii.gz',
                       '10880_182386710290888504267667945338785981449_needle_5.nii.gz')
 
 
 def test_mha2nnunet(inputs):
     s: Settings = inputs
-    c: Command = find_command(s, 'mha2nnunet')
+    cmd: CommandMHA2nnUNet = find_command(s, 'mha2nnunet')
 
-    del_dir(c.dm.nnunet)
-
-    mha2nnunet.mha2nnunet(c.dm, c.test_percentage)
+    mha2nnunet.mha2nnunet(cmd)
 
     # specific to 10880
-    assert assert_dir(c.dm.nnunet, 'mha2nnunet_train_settings.json', 'mha2nnunet_test_settings.json', 'nnunet_split.json')
-    assert assert_dir(c.dm.nnunet, c.dm.task_dirname)
-    assert assert_dir(c.dm.nnunet / c.dm.task_dirname, 'dataset.json', 'imagesTr', 'labelsTr', 'imagesTs', 'labelsTs')
+    assert assert_dir(cmd.out_dir, 'mha2nnunet_train_settings.json', 'mha2nnunet_test_settings.json', 'nnunet_split.json')
+    assert assert_dir(cmd.out_dir, cmd.task_dirname)
+    assert assert_dir(cmd.out_dir / cmd.task_dirname, 'dataset.json', 'imagesTr', 'labelsTr', 'imagesTs', 'labelsTs')
     for niigz in ['10880_182386710290888504267667945338785981449_5_0000.nii.gz', '10880_244375702689236279917785509476093985322_1_0000.nii.gz']:
-        assert any([assert_dir(c.dm.nnunet / c.dm.task_dirname / t, niigz) for t in ['imagesTr', 'imagesTs']])
+        assert any([assert_dir(cmd.out_dir / cmd.task_dirname / t, niigz) for t in ['imagesTr', 'imagesTs']])
     for niigz in ['10880_182386710290888504267667945338785981449_5.nii.gz', '10880_244375702689236279917785509476093985322_1.nii.gz']:
-        assert any([assert_dir(c.dm.nnunet / c.dm.task_dirname / t, niigz) for t in ['labelsTr', 'labelsTs']])
+        assert any([assert_dir(cmd.out_dir / cmd.task_dirname / t, niigz) for t in ['labelsTr', 'labelsTs']])
 
 def test_inference(inputs):
     s: Settings = inputs
-    c: Command = find_command(s, 'inference')
+    cmd: CommandInference = find_command(s, 'inference')
 
     assert Path('output/annotations').exists(), "run test_prep/test_annotations first"
 
-    predict_dir = c.dm.predict
-    predict_dir.mkdir(exist_ok=True, parents=True)
-
-    shutil.rmtree(predict_dir)
-    shutil.copytree('input/predict', predict_dir)
-
-    inference.inference(c.dm, c.trainer)
+    # predict_dir = cmd.in_dir.predict
+    # predict_dir.mkdir(exist_ok=True, parents=True)
+    #
+    # shutil.rmtree(predict_dir)
+    # shutil.copytree('input/predict', predict_dir)
+    #
+    # inference.inference(cmd)

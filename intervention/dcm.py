@@ -4,12 +4,10 @@ from pathlib import Path
 import click
 from tqdm import tqdm
 
-from intervention.utils import Command, walk_archive
+from intervention.utils import CommandDCM, walk_archive
 
 
-def generate_dcm2mha_json(cmd: Command) -> Path:
-    cmd.assert_attributes('out_dir', 'archive_dir')
-
+def generate_dcm2mha_json(cmd: CommandDCM):
     dcm2mha_settings = cmd.out_dir / 'dcm2mha_settings.json'
 
     def walk_dcm_archive_add_func(dirpath: Path, _: str):
@@ -32,13 +30,8 @@ def generate_dcm2mha_json(cmd: Command) -> Path:
     for a in archives:
         archive.update(a)
 
-    mappings = {'needle': {'SeriesDescription': ['naald', 'nld']}}
-    options = {'allow_duplicates': True}
-
     cmd.out_dir.mkdir(exist_ok=True)
     with open(dcm2mha_settings, 'w') as f:
-        json.dump({"options": options,
-                   "mappings": mappings,
+        json.dump({"options": {'allow_duplicates': True},
+                   "mappings": cmd.mappings,
                    "archive": list([a.to_dict() for a in archive])}, f, indent=4)
-
-    return dcm2mha_settings

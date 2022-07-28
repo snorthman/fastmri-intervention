@@ -1,35 +1,38 @@
-import os, json, concurrent.futures, copy, shutil
+import json, concurrent.futures, copy, shutil
 from pathlib import Path
 
 import click, picai_prep
 from tqdm import tqdm
 import numpy as np
 
-from intervention.utils import DirectoryManager, dataset_json, walk_archive
+from intervention.utils import CommandMHA2nnUNet, dataset_json, walk_archive
+
+SPLIT_JSON = 'nnunet_split.json'
+TRAIN_JSON = 'mha2nnunet_train_settings.json'
+TEST_JSON = 'mha2nnunet_test_settings.json'
 
 
-def generate_mha2nnunet_jsons(dm: DirectoryManager, test_percentage: float):
-    dm.nnunet.mkdir(exist_ok=True)
+def generate_mha2nnunet_jsons(cmd: CommandMHA2nnUNet):
     rng = np.random.default_rng()
 
     def walk_mha_archive_add_func(dirpath: Path, filename: str):
         patient_id = dirpath.parts[-1]
-        mha = (dm.mha / patient_id / filename)
-        annotation = (dm.annotations / filename).with_suffix('.nii.gz')
+        mha = (cmd.mha_dir / patient_id / filename)
+        annotation = (cmd.annotate_dir / filename).with_suffix('.nii.gz')
         fn = filename.split(sep='_')
         if mha.exists() and annotation.exists():
             return {
                 "patient_id": patient_id,
                 "study_id": f'{fn[1]}_{fn[-1]}'[:-4],
-                "scan_paths": [mha.relative_to(dm.mha).as_posix()],
-                "annotation_path": annotation.relative_to(dm.annotations).as_posix()
+                "scan_paths": [mha.relative_to(cmd.mha_dir).as_posix()],
+                "annotation_path": annotation.relative_to(cmd.annotate_dir).as_posix()
             }
 
     def walk_mha_archive(in_dir: Path) -> set:
         return walk_archive(in_dir, endswith='.mha', add_func=walk_mha_archive_add_func)
 
-    click.echo(f"Gathering MHAs from {dm.mha} and its subdirectories")
-    dirs = list(dm.mha.iterdir())
+    click.echo(f"Gathering MHAs from {cmd.mha_dir} and its subdirectories")
+    dirs = list(cmd.mha_dir.iterdir())
     with concurrent.futures.ThreadPoolExecutor() as executor:
         archives = list(tqdm(executor.map(walk_mha_archive, dirs), total=len(dirs)))
 
@@ -39,7 +42,7 @@ def generate_mha2nnunet_jsons(dm: DirectoryManager, test_percentage: float):
     archive = list(archive)
     rng.shuffle(archive)
 
-    split = max(0, min(len(archive) - 1, round(test_percentage * len(archive))))
+    split = max(0, min(len(archive) - 1, round(cmd.test_percentage * len(archive))))
     test_set = archive[:split]
     train_set = archive[split:]
 
@@ -85,44 +88,46 @@ def generate_mha2nnunet_jsons(dm: DirectoryManager, test_percentage: float):
                 group.append(f'{item.patient_id}_{item.study_id}')
         nnunet_split.append({'train': train, 'val': val})
 
-    with open(dm.nnunet_split_json, 'w') as f:
+    with open(cmd.out_dir / SPLIT_JSON, 'w') as f:
         json.dump(nnunet_split, f, indent=4)
 
-    dump_settings = lambda A: {"dataset_json": dataset_json(dm.task_dirname),
+    dump_settings = lambda A: {"dataset_json": dataset_json(cmd.task_dirname),
                                "preprocessing": preprocessing,
                                "archive": list([a.to_dict() for a in A])}
 
-    with open(dm.nnunet_train_json, 'w') as f:
+    with open(cmd.out_dir / TRAIN_JSON, 'w') as f:
         json.dump(dump_settings([t for s in splits for t in s]), f, indent=4)
-    with open(dm.nnunet_test_json, 'w') as f:
+    with open(cmd.out_dir / TEST_JSON, 'w') as f:
         json.dump(dump_settings(test_set), f, indent=4)
 
 
-def mha2nnunet(dm: DirectoryManager, test_percentage: float):
-    if not dm.nnunet_train_json.exists() or not dm.nnunet_test_json.exists():
-        generate_mha2nnunet_jsons(dm, test_percentage)
+def mha2nnunet(cmd: CommandMHA2nnUNet):
+    train_json = cmd.out_dir / TRAIN_JSON
+    test_json = cmd.out_dir / TEST_JSON
+    if not train_json.exists() or not test_json.exists():
+        generate_mha2nnunet_jsons(cmd)
 
-    train = dm.nnunet / 'train'
-    test = dm.nnunet / 'test'
+    train = cmd.out_dir / 'train'
+    test = cmd.out_dir / 'test'
 
     picai_prep.MHA2nnUNetConverter(
-        input_path=dm.mha.as_posix(),
-        annotations_path=dm.annotations.as_posix(),
+        input_path=cmd.mha_dir.as_posix(),
+        annotations_path=cmd.annotate_dir.as_posix(),
         output_path=train.as_posix(),
-        settings_path=dm.nnunet_train_json.as_posix()
+        settings_path=train_json.as_posix()
     ).convert()
 
     picai_prep.MHA2nnUNetConverter(
-        input_path=dm.mha.as_posix(),
-        annotations_path=dm.annotations.as_posix(),
+        input_path=cmd.mha_dir.as_posix(),
+        annotations_path=cmd.annotate_dir.as_posix(),
         output_path=test.as_posix(),
-        settings_path=dm.nnunet_test_json.as_posix(),
+        settings_path=test_json.as_posix(),
         out_dir_scans="imagesTs",
         out_dir_annot="labelsTs"
     ).convert()
 
-    train_task = train / dm.task_dirname
-    test_task = test / dm.task_dirname
+    train_task = train / cmd.task_dirname
+    test_task = test / cmd.task_dirname
 
     with open(train_task / 'dataset.json') as f:
         train_dataset = json.load(f)
@@ -134,7 +139,7 @@ def mha2nnunet(dm: DirectoryManager, test_percentage: float):
     dataset['test'] = [{'image': i['image'].replace('sTr/', 'sTs/'),
                         'label': i['label'].replace('sTr/', 'sTs/')} for i in test_dataset['training']]
 
-    output = dm.nnunet / dm.task_dirname
+    output = cmd.out_dir / cmd.task_dirname
     if output.exists():
         shutil.rmtree(output)
     output.mkdir(parents=True)

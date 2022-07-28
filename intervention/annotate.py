@@ -10,7 +10,7 @@ from shapely.geometry import Polygon, Point, LineString, MultiPoint
 from quaternion import from_vector_part, rotate_vectors
 from tqdm import tqdm
 
-from intervention.utils import GCAPI, DirectoryManager
+from intervention.utils import GCAPI, CommandAnnotate
 
 # in mm
 diameter_base = 12
@@ -139,7 +139,7 @@ def _get_answers(mha_dir: Path, gc: GCAPI) -> List[Answer]:
     return [a for a in answers.values()]
 
 
-def write_annotations(dm: DirectoryManager, gc: GCAPI, base_needle: int = 1, needle_tip: int = 2):
+def write_annotations(cmd: CommandAnnotate, base_needle: int = 1, needle_tip: int = 2):
     context = threading.local()
 
     if not all(0 < x < 3 for x in [base_needle, needle_tip]):
@@ -193,19 +193,18 @@ def write_annotations(dm: DirectoryManager, gc: GCAPI, base_needle: int = 1, nee
                               if boundary.contains(np.array(mha.TransformIndexToPhysicalPoint(g)))]
                     explored = explored.union(group)
 
-            sitk.WriteImage(annotation, fileName=str(dm.annotations / answer.mha.with_suffix('.nii.gz').name), useCompression=True)
+            sitk.WriteImage(annotation, fileName=str(cmd.out_dir / answer.mha.with_suffix('.nii.gz').name), useCompression=True)
             return True
         except Exception as e:
             answer.error = e
             return False
 
-    click.echo(f'\nCreating annotations in\n\t{dm.annotations}\nusing\n\t{dm.mha}\nand answers from\n\t{gc.slug}')
+    click.echo(f'\nCreating annotations in\n\t{cmd.out_dir}\nusing\n\t{cmd.mha_dir}\nand answers from\n\t{cmd.gc.slug}')
 
-    answers = _get_answers(dm.mha, gc)
+    answers = _get_answers(cmd.mha_dir, cmd.gc)
 
     click.echo(f'Downloaded {len(answers)} case answers from Grand Challenge')
 
-    dm.annotations.mkdir(exist_ok=True)
     successes, errors = 0, 0
     with ThreadPoolExecutor(max_workers=min(8, (os.cpu_count() or 1) + 4), initializer=initializer_worker) as pool:
         futures = {pool.submit(_write_annotation, a): a for a in answers}
@@ -218,5 +217,5 @@ def write_annotations(dm: DirectoryManager, gc: GCAPI, base_needle: int = 1, nee
     skips = len(answers) - successes - errors
     click.echo(f'Wrote {successes} annotations, with {skips} skipped and {errors} failed')
 
-    with open(dm.annotations / f'annotation_log_{datetime.now().strftime("%Y%m%d%H%M%S")}.log', 'w') as f:
+    with open(cmd.out_dir / f'annotation_log_{datetime.now().strftime("%Y%m%d%H%M%S")}.log', 'w') as f:
         f.writelines([f'{a.error}\n' for a in answers if not a.is_valid()])

@@ -136,52 +136,108 @@ class GCAPI:
 
 
 class Command:
-    def __init__(self, name: str, summary: str, base_dir: Path, settings: dict):
-        self.name = name
-        self.summary = summary
-        self._settings = settings
-        self._base = base_dir
-
-        # I/O
-        in_dir: str = settings.get('in_dir', None)
-        if in_dir:
-            self.in_dir: Path = Path(in_dir) if in_dir.startswith('/') else Path(base_dir / in_dir)
-        self.out_dir = base_dir / settings.get('out_dir', None)
-        self.out_dir.mkdir(exist_ok=True, parents=True)
-
-        # nnUNet
-        self.task_name: str = settings.get('task_name', None)
-        self.task_id: int = settings.get('task_id', 500)
-
-        # GC
-        gc_slug: str = settings.get('gc_slug', None)
-        gc_api: str = settings.get('gc_api', None)
-        self.gc = None
-        if gc_slug and gc_api:
-            self.gc = GCAPI(gc_slug, gc_api)
-
-        # other
-        self.trainer: str = settings.get('trainer', None)
-        self.test_percentage: float = settings.get('test_percentage', 1 / 6)
-
-    def assert_attributes(self, *attrs: str):
-        for attr in attrs:
-            if not self.__getattribute__(attr):
-                raise AttributeError(f'missing {attr}')
-            if attr == 'in_dir':
-                self.validate_dir(self.in_dir)
+    def __init__(self, **kwargs):#name: str, summary: str, base_dir: Path, settings: dict):
+        self.name = kwargs['name']
+        self.summary = kwargs['summary']
+        self._settings = kwargs['settings']
+        self._base = kwargs['base_dir']
+        self.kwargs = kwargs
 
     def __str__(self):
         return self.name
 
-    @staticmethod
-    def validate_dir(path: str):
-        if not path:
-            return
-        path = Path(path)
-        if not path.exists() or not path.is_dir():
-            raise NotADirectoryError(f'{path} does not exist or is not a directory')
-        return path
+    def setup_dir(self, key: str) -> Path:
+        new_dir: str = self._settings[key]
+        if new_dir.startswith('/'):
+            absolute_dir: Path = Path(new_dir)
+            if not absolute_dir.exists():
+                raise FileExistsError(key)
+            if not absolute_dir.is_dir():
+                raise NotADirectoryError(key)
+            return absolute_dir
+        else:
+            relative_dir: Path = Path(self._base / new_dir)
+            relative_dir.mkdir(exist_ok=True, parents=True)
+            return relative_dir
+
+
+class CommandDCM(Command):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.out_dir = self.setup_dir('out_dir')
+        self.archive_dir = self.setup_dir('archive_dir')
+        self.mappings = self._settings['mappings']
+
+
+class CommandDCM2MHA(Command):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.out_dir = self.setup_dir('out_dir')
+        self.archive_dir = self.setup_dir('archive_dir')
+        self.json_dir = self.setup_dir('json_dir')
+
+
+class CommandUpload(Command):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        gc_slug: str = self._settings['gc_slug']
+        gc_api: str = self._settings['gc_api']
+        self.gc = None
+        if gc_slug and gc_api:
+            self.gc = GCAPI(gc_slug, gc_api)
+        else:
+            raise AttributeError(f'missing attribute!\ngc_api: {gc_api}\ngc_slug: {gc_slug}')
+
+
+class CommandAnnotate(CommandUpload):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.out_dir = self.setup_dir('out_dir')
+        self.mha_dir = self.setup_dir('mha_dir')
+
+
+class CommandMHA2nnUNet(Command):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.out_dir = self.setup_dir('out_dir')
+        self.mha_dir = self.setup_dir('mha_dir')
+        self.annotate_dir = self.setup_dir('annotate_dir')
+        self.task_name: str = self._settings['task_name']
+        self.task_id: int = self._settings['task_id']
+        self.task_dirname = f'Task{self.task_id}_{self.task_name}'
+        self.test_percentage: float = self._settings['test_percentage']
+
+
+class CommandInference(Command):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.out_dir = self.setup_dir('out_dir')
+        self.in_dir = self.setup_dir('in_dir')
+        self.model_dir = self.setup_dir('model_dir')
+        self.trainer: str = self._settings['trainer']
+
+
+class CommandPlot(Command):
+    pass
+
+
+def _commandFactory(name: str, summary: str, base_dir: Path, settings: dict) -> Command:
+    kwargs = {'name': name, 'summary': summary, 'base_dir': base_dir, 'settings': settings}
+    if name == 'dcm':
+        return CommandDCM(**kwargs)
+    if name == 'dcm2mha':
+        return CommandDCM2MHA(**kwargs)
+    if name == 'upload':
+        return CommandUpload(**kwargs)
+    if name == 'mha2nnunet':
+        return CommandMHA2nnUNet(**kwargs)
+    if name == 'annotate':
+        return CommandAnnotate(**kwargs)
+    if name == 'inference':
+        return CommandInference(**kwargs)
+    if name == 'plot':
+        return CommandPlot(**kwargs)
+    raise KeyError(f'unknown name: {name}')
 
 
 class Settings:
@@ -221,7 +277,7 @@ class Settings:
                 desc = val['description']
                 summary.append(f'.\t{key}: {desc}\n.\t> {cmd[key]}')
 
-            self.commands.append(Command(name, '\n'.join(summary), self.base, cmd))
+            self.commands.append(_commandFactory(name, '\n'.join(summary), self.base, cmd))
 
         logging.info(self.summary())
 
@@ -261,8 +317,12 @@ class Settings:
             "type": "string"
         }
         in_dir = {
-            "description": "where all input is found, root is base_dir unless it starts with /",
+            "description": "root is base_dir unless it starts with /",
             "type": "string"
+        }
+        mappings = {
+            "description": "picai_prep/dcm2mha mappings",
+            "type": "object"
         }
         gc_slug = {
             "description": "Grand Challenge reader study slug",
@@ -273,6 +333,16 @@ class Settings:
             "type": "string",
             "minLength": 64,
             "maxLength": 64
+        }
+        task_name = {
+            "description": "nnUNet task name",
+            "type": "string"
+        }
+        task_id = {
+            "description": "nnUNet task ID",
+            "type": "integer",
+            "minimum": 500,
+            "maximum": 999
         }
         trainer = {
             "description": "model trainer name to inference with",
@@ -293,12 +363,21 @@ class Settings:
                 "properties": properties
             }
 
-        schemas['dcm'] = object_schema("generate a json settings file for the dcm2mha converter", in_dir=in_dir, out_dir=out_dir)
-        schemas['dcm2mha'] = object_schema("convert dcm2mha", in_dir=in_dir, out_dir=out_dir)
-        schemas['upload'] = object_schema("upload MHA to GC", gc_slug=gc_slug, gc_api=gc_api)
-        schemas['annotate'] = object_schema("download from GC, then annotate", out_dir=out_dir, gc_slug=gc_slug, gc_api=gc_api)
-        schemas['mha2nnunet'] = object_schema("convert dcm2mha", in_dir=in_dir, out_dir=out_dir, test_percentage=test_percentage)
-        schemas['inference'] = object_schema("inference using trained model", in_dir=in_dir, out_dir=out_dir, trainer=trainer)
+        schemas['dcm'] = object_schema("generate a json settings file for the dcm2mha converter",
+                                       archive_dir=in_dir, out_dir=out_dir, mappings=mappings)
+        schemas['dcm2mha'] = object_schema("convert dcm2mha",
+                                           archive_dir=in_dir, out_dir=out_dir, json_dir=in_dir)
+        schemas['upload'] = object_schema("upload MHA to GC",
+                                          gc_slug=gc_slug, gc_api=gc_api)
+        schemas['annotate'] = object_schema("download from GC, then annotate",
+                                            mha_dir=in_dir, out_dir=out_dir,
+                                            gc_slug=gc_slug, gc_api=gc_api)
+        schemas['mha2nnunet'] = object_schema("convert mha2nnunet",
+                                              mha_dir=in_dir, annotate_dir=in_dir, out_dir=out_dir,
+                                              test_percentage=test_percentage, task_name=task_name, task_id=task_id)
+        schemas['inference'] = object_schema("inference using trained model",
+                                             in_dir=in_dir, model_dir=in_dir, out_dir=out_dir,
+                                             trainer=trainer)
         schemas['plot'] = object_schema("plot all inferenced directories")
 
         return base, schemas
