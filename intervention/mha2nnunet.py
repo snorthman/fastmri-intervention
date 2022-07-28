@@ -111,19 +111,19 @@ def mha2nnunet(cmd: CommandMHA2nnUNet):
     test = cmd.out_dir / 'test'
 
     picai_prep.MHA2nnUNetConverter(
-        input_path=cmd.mha_dir.as_posix(),
-        annotations_path=cmd.annotate_dir.as_posix(),
-        output_path=train.as_posix(),
-        settings_path=train_json.as_posix()
+        output_dir=cmd.out_dir.as_posix(),
+        mha2nnunet_settings=(cmd.out_dir / TRAIN_JSON).as_posix(),
+        scans_dir=cmd.mha_dir.as_posix(),
+        annotations_dir=cmd.annotate_dir.as_posix()
     ).convert()
 
     picai_prep.MHA2nnUNetConverter(
-        input_path=cmd.mha_dir.as_posix(),
-        annotations_path=cmd.annotate_dir.as_posix(),
-        output_path=test.as_posix(),
-        settings_path=test_json.as_posix(),
-        out_dir_scans="imagesTs",
-        out_dir_annot="labelsTs"
+        output_dir=cmd.out_dir.as_posix(),
+        mha2nnunet_settings=(cmd.out_dir / TEST_JSON).as_posix(),
+        scans_dir=cmd.mha_dir.as_posix(),
+        annotations_dir=cmd.annotate_dir.as_posix(),
+        scans_out_dirname='imagesTs',
+        annotations_out_dirname='labelsTs'
     ).convert()
 
     train_task = train / cmd.task_dirname
