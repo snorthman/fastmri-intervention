@@ -4,7 +4,9 @@ from datetime import datetime
 
 import click
 
-from intervention.convert import dcm2mha, generate_dcm2mha_json, mha2nnunet
+from intervention.dcm import generate_dcm2mha_json
+from intervention.dcm2mha import dcm2mha
+from intervention.mha2nnunet import mha2nnunet
 from intervention.upload import upload_data, delete_all_data
 from intervention.annotate import write_annotations
 from intervention.utils import DirectoryManager, GCAPI, Settings

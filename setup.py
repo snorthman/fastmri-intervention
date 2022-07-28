@@ -17,7 +17,7 @@ setup(
         'SimpleITK~=2.1',
         'jsonschema~=4.6',
         'gcapi~=0.7',
-        'picai-prep @ git+https://github.com/snorthman/picai_prep.git',
+        'picai-prep @ git+https://github.com/DIAGNijmegen/picai_prep@refactor',
         'click'
     ],
     entry_points={

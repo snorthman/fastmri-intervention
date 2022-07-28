@@ -1,66 +1,11 @@
-import os, json, concurrent.futures, copy, shutil, math
+import os, json, concurrent.futures, copy, shutil
 from pathlib import Path
-from typing import Callable, Dict
 
 import click, picai_prep
 from tqdm import tqdm
-from box import Box
 import numpy as np
 
-from intervention.utils import DirectoryManager, dataset_json
-
-
-def _walk_archive(in_dir: Path, endswith: str, add_func: Callable[[Path, str], Dict]) -> set:
-    archive = set()
-    for dirpath, dirnames, filenames in os.walk(in_dir):
-        for fn in [f for f in filenames if f.endswith(endswith)]:
-            obj = add_func(Path(dirpath), fn)
-            if obj:
-                archive.add(Box(obj, frozen_box=True))
-    return archive
-
-
-def generate_dcm2mha_json(dm: DirectoryManager, archive_dir: Path) -> Path:
-    dcm2mha_settings = dm.dcm / 'dcm2mha_settings.json'
-
-    def walk_dcm_archive_add_func(dirpath: Path, _: str):
-        return {
-            "patient_id": dirpath.parts[-3],
-            "study_id": dirpath.parts[-2].split(sep='.')[-1],
-            "path": dirpath.as_posix()
-        }
-
-    def walk_dcm_archive(in_dir: Path) -> set:
-        return _walk_archive(in_dir, endswith='.dcm', add_func=walk_dcm_archive_add_func)
-
-    click.echo(f"Gathering DICOMs from {archive_dir} and its subdirectories")
-    dirs = [d.absolute() for d in archive_dir.iterdir()]
-
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        archives = list(tqdm(executor.map(walk_dcm_archive, dirs), total=len(dirs)))
-
-    archive = set()
-    for a in archives:
-        archive.update(a)
-
-    mappings = {'needle': {'SeriesDescription': ['naald', 'nld']}}
-    options = {'allow_duplicates': True}
-
-    dm.dcm.mkdir(exist_ok=True)
-    with open(dcm2mha_settings, 'w') as f:
-        json.dump({"options": options,
-                   "mappings": mappings,
-                   "archive": list([a.to_dict() for a in archive])}, f, indent=4)
-
-    return dcm2mha_settings
-
-
-def dcm2mha(dm: DirectoryManager, archive_dir: Path):
-    picai_prep.Dicom2MHAConverter(
-        input_dir=archive_dir.as_posix(),
-        output_dir=dm.mha.as_posix(),
-        dcm2mha_settings=dm.dcm_settings_json.as_posix(),
-    ).convert()
+from intervention.utils import DirectoryManager, dataset_json, walk_archive
 
 
 def generate_mha2nnunet_jsons(dm: DirectoryManager, test_percentage: float):
@@ -81,7 +26,7 @@ def generate_mha2nnunet_jsons(dm: DirectoryManager, test_percentage: float):
             }
 
     def walk_mha_archive(in_dir: Path) -> set:
-        return _walk_archive(in_dir, endswith='.mha', add_func=walk_mha_archive_add_func)
+        return walk_archive(in_dir, endswith='.mha', add_func=walk_mha_archive_add_func)
 
     click.echo(f"Gathering MHAs from {dm.mha} and its subdirectories")
     dirs = list(dm.mha.iterdir())
@@ -178,7 +123,7 @@ def mha2nnunet(dm: DirectoryManager, test_percentage: float):
 
     train_task = train / dm.task_dirname
     test_task = test / dm.task_dirname
-        
+
     with open(train_task / 'dataset.json') as f:
         train_dataset = json.load(f)
     with open(test_task / 'dataset.json') as f:

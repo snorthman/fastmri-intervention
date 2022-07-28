@@ -1,7 +1,9 @@
-import httpx, logging, json, copy
+import httpx, logging, json, copy, os
 from pathlib import Path
 from datetime import datetime
+from typing import Callable, Dict
 
+from box import Box
 import gcapi, jsonschema
 
 
@@ -28,6 +30,16 @@ def dataset_json(task_dirname: str):
     }
 
 
+def walk_archive(in_dir: Path, endswith: str, add_func: Callable[[Path, str], Dict]) -> set:
+    archive = set()
+    for dirpath, dirnames, filenames in os.walk(in_dir):
+        for fn in [f for f in filenames if f.endswith(endswith)]:
+            obj = add_func(Path(dirpath), fn)
+            if obj:
+                archive.add(Box(obj, frozen_box=True))
+    return archive
+
+
 class DirectoryManager:
     def __init__(self, base: Path, output_dir: Path, task_name: str, task_id: int):
         """
@@ -48,7 +60,6 @@ class DirectoryManager:
         self.nnunet_test_json = self.nnunet / f'mha2nnunet_test_settings.json'
         self.results = self.output / 'results'
         self.predict = self.output / 'predict'
-
 
         if not 500 <= task_id < 1000:
             raise ValueError("id must be between 500 and 999")

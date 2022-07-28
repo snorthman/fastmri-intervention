@@ -3,7 +3,9 @@ from pathlib import Path
 
 import pytest
 
-import intervention.convert as convert
+import intervention.dcm as dcm
+import intervention.dcm2mha as dcm2mha
+import intervention.mha2nnunet as mha2nnunet
 import intervention.annotate as annotate
 import intervention.inference as inference
 from intervention.utils import Command, Settings
@@ -47,7 +49,7 @@ def test_dcm(inputs):
 
     remake_dir(c.dm.dcm)
 
-    convert.generate_dcm2mha_json(c.dm, c.archive_dir)
+    dcm.generate_dcm2mha_json(c.dm, c.archive_dir)
 
 
 def test_dcm2mha(inputs):
@@ -56,7 +58,7 @@ def test_dcm2mha(inputs):
 
     remake_dir(c.dm.mha)
 
-    convert.dcm2mha(c.dm, c.archive_dir)
+    dcm2mha.dcm2mha(c.dm, c.archive_dir)
 
     # specific to 10880
     assert assert_dir(c.dm.mha / '10880', '10880_182386710290888504267667945338785981449_needle_0.mha',
@@ -88,7 +90,7 @@ def test_mha2nnunet(inputs):
 
     remake_dir(c.dm.nnunet)
 
-    convert.mha2nnunet(c.dm, c.test_percentage)
+    mha2nnunet.mha2nnunet(c.dm, c.test_percentage)
 
     # specific to 10880
     assert assert_dir(c.dm.nnunet, 'mha2nnunet_train_settings.json', 'mha2nnunet_test_settings.json', 'nnunet_split.json')
