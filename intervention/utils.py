@@ -275,14 +275,14 @@ class Settings:
             summary = [schemas[name]['description']]
             for key, val in properties.items():
                 desc = val['description']
-                summary.append(f'.\t{key}: {desc}\n.\t> {cmd[key]}')
+                summary.append(f'    >> {key}: {desc}\n       "{cmd[key]}"')
 
             self.commands.append(_commandFactory(name, '\n'.join(summary), self.base, cmd))
 
         logging.info(self.summary())
 
     def summary(self) -> str:
-        return '\n\n'.join([f'({str(i)}) {c.name}: {c.summary}' for i, c in enumerate(self.commands)])
+        return '\n\n'.join([f'({str(i + 1)}) {c.name}: {c.summary}' for i, c in enumerate(self.commands)])
 
     @staticmethod
     def _schema():

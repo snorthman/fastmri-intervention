@@ -22,7 +22,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'fastmri-intervention = intervention.cli:cli',
+            'fastmri-intervention = intervention.__main__:cli',
         ]
     }
 )

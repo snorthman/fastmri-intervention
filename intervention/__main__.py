@@ -10,7 +10,7 @@ from intervention.mha2nnunet import mha2nnunet
 from intervention.upload import upload_data, delete_all_data
 from intervention.annotate import write_annotations
 from intervention.utils import DirectoryManager, GCAPI, Settings
-from intervention.inference import inference, plot
+# from intervention.inference import inference, plot
 
 
 def upload(dm: DirectoryManager, gc: GCAPI):
@@ -36,19 +36,19 @@ def cli(settings: Path):
 
     for cmd in s.commands:
         if cmd.name == 'dcm':
-            generate_dcm2mha_json(cmd.dm, cmd.archive_dir)
+            generate_dcm2mha_json(cmd)
         if cmd.name == 'dcm2mha':
-            dcm2mha(cmd.dm, cmd.archive_dir)
+            dcm2mha(cmd)
         if cmd.name == 'upload':
             pass
         if cmd.name == 'annotate':
-            write_annotations(cmd.dm, cmd.gc)
+            write_annotations(cmd)
         if cmd.name == 'mha2nnunet':
-            mha2nnunet(cmd.dm, cmd.test_percentage)
-        if cmd.name == 'inference':
-            inference(cmd.dm, cmd.trainer)
-        if cmd.name == 'plot':
-            plot(cmd.dm)
+            mha2nnunet(cmd)
+        # if cmd.name == 'inference':
+        #     inference(cmd.dm, cmd.trainer)
+        # if cmd.name == 'plot':
+        #     plot(cmd.dm)
 
     end = datetime.now()
     logging.info(f"Program end at {end}\n\truntime {end - start}")
